@@ -274,7 +274,7 @@ class PdfHighlighter extends react_1.PureComponent {
                 }
             }
             const content = {
-                text: rangeToStringWithSpaces(range),
+                text: rangeToStringWithSpaces(range) || range.toString(),
             };
             const scaledPosition = this.viewportPositionToScaled(viewportPosition);
             this.setTip(viewportPosition, onSelectionFinished(scaledPosition, content, () => this.hideTipAndSelection(), () => this.setState({
