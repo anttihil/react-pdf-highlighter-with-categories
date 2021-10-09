@@ -591,7 +591,7 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
     }
 
     const content = {
-      text: rangeToStringWithSpaces(range),
+      text: rangeToStringWithSpaces(range) || range.toString(),
     };
 
     const scaledPosition = this.viewportPositionToScaled(viewportPosition);

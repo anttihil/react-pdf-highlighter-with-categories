@@ -251,7 +251,7 @@ export class PdfHighlighter extends PureComponent {
                 }
             }
             const content = {
-                text: rangeToStringWithSpaces(range),
+                text: rangeToStringWithSpaces(range) || range.toString(),
             };
             const scaledPosition = this.viewportPositionToScaled(viewportPosition);
             this.setTip(viewportPosition, onSelectionFinished(scaledPosition, content, () => this.hideTipAndSelection(), () => this.setState({
