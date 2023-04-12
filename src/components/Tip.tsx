@@ -1,6 +1,14 @@
 import React, { Component } from "react";
 
 import "../style/Tip.css";
+import {
+  Box,
+  Button,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  TextField,
+} from "@mui/material";
 
 interface State {
   compact: boolean;
@@ -13,6 +21,8 @@ interface Props {
   onOpen: () => void;
   onUpdate?: () => void;
   categoryLabels: Array<{ label: string; background: string }>;
+  tipBackgroundColor: string;
+  tipColor: string;
 }
 
 export class Tip extends Component<Props, State> {
@@ -32,7 +42,7 @@ export class Tip extends Component<Props, State> {
   }
 
   render() {
-    const { onConfirm, onOpen, categoryLabels } = this.props;
+    const { onConfirm, onOpen, categoryLabels , tipBackgroundColor = "#D3D3D3", tipColor = "black"} = this.props;
     const { compact, text, category: category } = this.state;
 
     return (
@@ -48,7 +58,9 @@ export class Tip extends Component<Props, State> {
             Add highlight
           </div>
         ) : (
-          <form
+          <Box
+            component="form"
+            sx={{ background: tipBackgroundColor, color:tipColor }}
             className="Tip__card"
             onSubmit={(event) => {
               event.preventDefault();
@@ -56,8 +68,10 @@ export class Tip extends Component<Props, State> {
             }}
           >
             <div className="Tip__content">
-              <textarea
+              <TextField
                 placeholder="Your comment"
+                multiline
+                variant="outlined"
                 autoFocus
                 value={text}
                 onChange={(event) =>
@@ -71,30 +85,37 @@ export class Tip extends Component<Props, State> {
               />
 
               <div className="Tip__list">
-                {categoryLabels.map((_category) => (
-                  <label key={_category.label} className="Tip__list-item">
-                    <input
-                      checked={category === _category.label}
-                      type="radio"
-                      name="category"
-                      value={_category.label}
-                      onChange={(event) =>
-                        this.setState({ category: event.target.value })
+                <RadioGroup>
+                  {categoryLabels.map((_category) => (
+                    <FormControlLabel
+                      label={_category.label}
+                      key={_category.label}
+                      control={
+                        <Radio
+                          sx={{ color: _category.background }}
+                          checked={category === _category.label}
+                          name="category"
+                          value={_category.label}
+                          onChange={(event) =>
+                            this.setState({ category: event.target.value })
+                          }
+                        />
                       }
                     />
-                    {_category.label}
-                  </label>
-                ))}
+                  ))}
+                </RadioGroup>
               </div>
             </div>
-            <div>
-              <input type="submit" value="Save" />
-            </div>
-          </form>
+            <Button type="submit" variant="outlined"  fullWidth size="small" >
+              Save
+            </Button>
+          </Box>
         )}
       </div>
     );
   }
 }
+
+
 
 export default Tip;
