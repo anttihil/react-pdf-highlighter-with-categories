@@ -46,6 +46,7 @@ import type {
 } from "../types";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { addMissingSpacesToSelection } from "../lib/selection-range-utils";
+import CustomSelection from "./CustomSelection";
 
 type T_ViewportHighlight<T_HT> = { position: Position } & T_HT;
 
@@ -130,6 +131,8 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
 
   resizeObserver: ResizeObserver | null = null;
   containerNode?: HTMLDivElement | null = null;
+  viewerNode: HTMLDivElement | null = null;
+
   unsubscribe = () => {};
 
   highlightLayerRoots: Array<Root | null> = [];
@@ -661,7 +664,12 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
           onContextMenu={(e) => e.preventDefault()}
           style={this.props.style}
         >
-          <div className="pdfViewer" />
+          <div
+            className="pdfViewer"
+            ref={(ref) => {
+              this.viewerNode = ref;
+            }}
+          />
           {this.renderTip()}
           {typeof enableAreaSelection === "function" ? (
             <MouseSelection
@@ -735,6 +743,12 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
             />
           ) : null}
         </div>
+        {this.containerNode && this.viewerNode && (
+          <CustomSelection
+            container={this.containerNode}
+            viewerNode={this.viewerNode}
+          />
+        )}
       </div>
     );
   }
