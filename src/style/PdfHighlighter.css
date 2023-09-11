@@ -20,3 +20,7 @@
   user-select: none;
   pointer-events: none;
 }
+
+.PdfHighlighter--disable-touch {
+  touch-action: none;
+}

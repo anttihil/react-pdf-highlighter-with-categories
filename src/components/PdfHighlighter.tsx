@@ -94,6 +94,10 @@ interface Props<T_HT> {
     categoryLabels: Array<{ label: string; background: string }>
   ) => JSX.Element | null;
   enableAreaSelection: (event: MouseEvent) => boolean;
+  setAreaSelection: (value: boolean) => void;
+  isAreaSelectionEnabled: boolean;
+  toggleCustomSelection: (value: boolean) => void;
+  isCustomSelectionEnabled: boolean;
   getPageCount: (pageCount: number) => void;
   getCurrentPage: (currentPage: number) => void;
   destinationPage?: number;
@@ -743,12 +747,17 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
             />
           ) : null}
         </div>
-        {this.containerNode && this.viewerNode && (
-          <CustomSelection
-            container={this.containerNode}
-            viewerNode={this.viewerNode}
-          />
-        )}
+        {this.containerNode &&
+          this.viewerNode &&
+          this.props.isCustomSelectionEnabled && (
+            <CustomSelection
+              container={this.containerNode}
+              viewerNode={this.viewerNode}
+              viewer={this.viewer}
+              setCustomSelection={this.props.toggleCustomSelection}
+              setAreaSelection={this.props.setAreaSelection}
+            />
+          )}
       </div>
     );
   }

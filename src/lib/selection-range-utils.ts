@@ -69,3 +69,66 @@ export function addMissingSpacesToSelection(range: Range) {
 
   return stringifiedRange.slice(startIndex, endIndex).trim();
 }
+
+/** At first, we try to find the text node and offset with point related API methods */
+export const getTextAtPoint = (e: PointerEvent) => {
+  let textNode: Text | null = null;
+  let offset: number = 0;
+  //@ts-ignore - ts doesn't know about Firefox specific caretPositionFromPoint
+  if (document.caretPositionFromPoint) {
+    //@ts-ignore
+    const caretPosition: any = document.caretPositionFromPoint(
+      e.clientX,
+      e.clientY
+    );
+    if (caretPosition && caretPosition.offsetNode instanceof Text) {
+      textNode = caretPosition.offsetNode;
+      offset = caretPosition.offset;
+    }
+  } else if (document.caretRangeFromPoint) {
+    // Use WebKit-proprietary fallback method
+    const caretRange = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (caretRange && caretRange.startContainer instanceof Text) {
+      textNode = caretRange.startContainer;
+      offset = caretRange.startOffset;
+    }
+  } else {
+    const textNodeFromPoint = document.elementFromPoint(
+      e.clientX,
+      e.clientY
+    )?.firstChild;
+
+    if (textNodeFromPoint instanceof Text) {
+      textNode = textNodeFromPoint;
+    }
+  }
+
+  return { textNode, offset };
+};
+
+/**If no text node is found, find the first text node below the pointer */
+export const getNextTextNode = (e: PointerEvent, textLayer: HTMLDivElement) => {
+  let textNode: Text | null = null;
+  let textRect: DOMRect;
+  const tempRange = document.createRange();
+  const walk = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT);
+  while (walk.nextNode()) {
+    // We need to create a range to get the bounding rect of the text node
+    tempRange.selectNode(walk.currentNode);
+    textRect = tempRange.getBoundingClientRect();
+    if (textRect.top > e.clientY) {
+      textNode = walk.currentNode as Text;
+      break;
+    }
+  }
+  return textNode;
+};
+
+/** Get the text node and offset at the pointer position */
+export const getTextNodeAndOffset = (
+  e: PointerEvent,
+  textLayer: HTMLDivElement
+) => {
+  const { textNode, offset } = getTextAtPoint(e);
+  return { textNode: textNode || getNextTextNode(e, textLayer), offset };
+};
