@@ -2,16 +2,17 @@ import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
 import React from "react";
 import { useEffect, useState, useRef } from "react";
 import { getTextNodeAndOffset } from "../lib/selection-range-utils";
+import { SelectionType } from "../types";
 
 interface CustomSelectionProps {
   container: HTMLDivElement;
-  viewerNode: HTMLDivElement;
   viewer: PDFViewer;
+  setSelectionType: (value: SelectionType) => void;
 }
 const CustomSelection = ({
   container,
-  viewerNode,
   viewer,
+  setSelectionType,
 }: CustomSelectionProps) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -80,12 +81,15 @@ const CustomSelection = ({
         ? range.current?.setEnd(textNode, offset)
         : range.current?.setStart(textNode, offset);
       return;
-    } else {
-      //TODO: handle this case by enabling area selection
+    }
+
+    // if we don't find anything, we enable area selection
+    if (isSelecting) {
+      setSelectionType("area");
     }
   }
 
-  function handlePointerUp(this: HTMLDivElement, e: globalThis.PointerEvent) {
+  function handlePointerUp() {
     const ctx = canvasCtx.current;
     if (!ctx) return;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -126,7 +130,7 @@ const CustomSelection = ({
         top: 0,
         left: 0,
         zIndex: 1000,
-        // passthrough pointer events to the viewer
+        // pass through pointer events to the viewer
         pointerEvents: "none",
       }}
     />

@@ -76,3 +76,5 @@ export interface Page {
   node: HTMLElement;
   number: number;
 }
+
+export type SelectionType = "area" | "custom" | "";

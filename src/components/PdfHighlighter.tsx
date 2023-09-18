@@ -43,6 +43,7 @@ import type {
   Position,
   Scaled,
   ScaledPosition,
+  SelectionType,
 } from "../types";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { addMissingSpacesToSelection } from "../lib/selection-range-utils";
@@ -93,11 +94,8 @@ interface Props<T_HT> {
     transformSelection: () => void,
     categoryLabels: Array<{ label: string; background: string }>
   ) => JSX.Element | null;
-  enableAreaSelection: (event: MouseEvent) => boolean;
-  setAreaSelection: (value: boolean) => void;
-  isAreaSelectionEnabled: boolean;
-  toggleCustomSelection: (value: boolean) => void;
-  isCustomSelectionEnabled: boolean;
+  setSelectionType: (value: SelectionType) => void;
+  selectionType: SelectionType;
   getPageCount: (pageCount: number) => void;
   getCurrentPage: (currentPage: number) => void;
   destinationPage?: number;
@@ -657,8 +655,12 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
   debouncedScaleValue: () => void = debounce(this.handleScaleValue, 500);
 
   render() {
-    const { onSelectionFinished, enableAreaSelection, categoryLabels } =
-      this.props;
+    const {
+      onSelectionFinished,
+      selectionType,
+      categoryLabels,
+      setSelectionType,
+    } = this.props;
 
     return (
       <div onPointerDown={this.onMouseDown}>
@@ -675,89 +677,86 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
             }}
           />
           {this.renderTip()}
-          {typeof enableAreaSelection === "function" ? (
-            <MouseSelection
-              categoryLabels={categoryLabels}
-              onDragStart={() => this.toggleTextSelection(true)}
-              onDragEnd={() => this.toggleTextSelection(false)}
-              onChange={(isVisible) =>
-                this.setState({ isAreaSelectionInProgress: isVisible })
+          <MouseSelection
+            categoryLabels={categoryLabels}
+            onDragStart={() => this.toggleTextSelection(true)}
+            onDragEnd={() => {
+              this.toggleTextSelection(false);
+              setSelectionType("");
+            }}
+            onChange={(isVisible) =>
+              this.setState({ isAreaSelectionInProgress: isVisible })
+            }
+            shouldStart={(event) =>
+              selectionType === "area" &&
+              isHTMLElement(event.target) &&
+              Boolean(asElement(event.target).closest(".page"))
+            }
+            onSelection={(
+              startTarget,
+              boundingRect,
+              resetSelection,
+              cLabels
+            ) => {
+              const page = getPageFromElement(startTarget);
+
+              if (!page) {
+                return;
               }
-              shouldStart={(event) =>
-                enableAreaSelection(event) &&
-                isHTMLElement(event.target) &&
-                Boolean(asElement(event.target).closest(".page"))
-              }
-              onSelection={(
-                startTarget,
-                boundingRect,
-                resetSelection,
-                cLabels
-              ) => {
-                const page = getPageFromElement(startTarget);
 
-                if (!page) {
-                  return;
-                }
+              const pageBoundingRect = {
+                ...boundingRect,
+                top: boundingRect.top - page.node.offsetTop,
+                left: boundingRect.left - page.node.offsetLeft,
+                pageNumber: page.number,
+              };
 
-                const pageBoundingRect = {
-                  ...boundingRect,
-                  top: boundingRect.top - page.node.offsetTop,
-                  left: boundingRect.left - page.node.offsetLeft,
-                  pageNumber: page.number,
-                };
+              const viewportPosition = {
+                boundingRect: pageBoundingRect,
+                rects: [],
+                pageNumber: page.number,
+              };
 
-                const viewportPosition = {
-                  boundingRect: pageBoundingRect,
-                  rects: [],
-                  pageNumber: page.number,
-                };
+              const scaledPosition =
+                this.viewportPositionToScaled(viewportPosition);
 
-                const scaledPosition =
-                  this.viewportPositionToScaled(viewportPosition);
+              const image = this.screenshot(
+                pageBoundingRect,
+                pageBoundingRect.pageNumber
+              );
 
-                const image = this.screenshot(
-                  pageBoundingRect,
-                  pageBoundingRect.pageNumber
-                );
-
-                this.setTip(
-                  viewportPosition,
-                  onSelectionFinished(
-                    scaledPosition,
-                    { image },
-                    () => this.hideTipAndSelection(),
-                    () =>
-                      this.setState(
-                        {
-                          ghostHighlight: {
-                            position: scaledPosition,
-                            content: { image },
-                          },
+              this.setTip(
+                viewportPosition,
+                onSelectionFinished(
+                  scaledPosition,
+                  { image },
+                  () => this.hideTipAndSelection(),
+                  () =>
+                    this.setState(
+                      {
+                        ghostHighlight: {
+                          position: scaledPosition,
+                          content: { image },
                         },
-                        () => {
-                          resetSelection();
-                          this.renderHighlights();
-                        }
-                      ),
-                    cLabels
-                  )
-                );
-              }}
-            />
-          ) : null}
+                      },
+                      () => {
+                        resetSelection();
+                        this.renderHighlights();
+                      }
+                    ),
+                  cLabels
+                )
+              );
+            }}
+          />
         </div>
-        {this.containerNode &&
-          this.viewerNode &&
-          this.props.isCustomSelectionEnabled && (
-            <CustomSelection
-              container={this.containerNode}
-              viewerNode={this.viewerNode}
-              viewer={this.viewer}
-              setCustomSelection={this.props.toggleCustomSelection}
-              setAreaSelection={this.props.setAreaSelection}
-            />
-          )}
+        {this.containerNode && selectionType === "custom" && (
+          <CustomSelection
+            container={this.containerNode}
+            viewer={this.viewer}
+            setSelectionType={setSelectionType}
+          />
+        )}
       </div>
     );
   }
