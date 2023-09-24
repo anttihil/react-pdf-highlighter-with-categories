@@ -7,6 +7,7 @@ import {
   Highlight,
   Popup,
   AreaHighlight,
+  SelectionType,
 } from "./react-pdf-highlighter";
 
 import type { IHighlight, NewHighlight } from "./react-pdf-highlighter";
@@ -27,6 +28,7 @@ interface State {
   destinationPage: number;
   pageCount: number;
   currentPage: number;
+  selectionType: SelectionType;
 }
 
 const getNextId = () => String(Math.random()).slice(2);
@@ -71,6 +73,7 @@ class App extends Component<{}, State> {
     destinationPage: 1,
     pageCount: 0,
     currentPage: 1,
+    selectionType: "",
   };
 
   resetHighlights = () => {
@@ -153,8 +156,7 @@ class App extends Component<{}, State> {
   }
 
   render() {
-    const { url, highlights, data } = this.state;
-
+    const { url, highlights, data, selectionType } = this.state;
     return (
       <div className="App" style={{ display: "flex", height: "100vh" }}>
         <div
@@ -232,6 +234,43 @@ class App extends Component<{}, State> {
           >
             Back to Page 1
           </button>
+          <button
+            style={{
+              width: "auto",
+              height: "20px",
+              backgroundColor: "grey",
+              borderRadius: "5px",
+              color: selectionType === "area" ? "white" : "black",
+            }}
+            onClick={() => this.setState({ selectionType: "area" })}
+          >
+            Area Selection
+          </button>
+          <button
+            style={{
+              width: "auto",
+              height: "20px",
+              backgroundColor: "grey",
+              borderRadius: "5px",
+              color: selectionType === "custom" ? "white" : "black",
+            }}
+            onClick={() => this.setState({ selectionType: "custom" })}
+          >
+            Custom Selection
+          </button>
+          <button
+            style={{
+              width: "auto",
+              height: "20px",
+              backgroundColor: "grey",
+              borderRadius: "5px",
+            }}
+            onClick={() => {
+              this.setState({ selectionType: "" });
+            }}
+          >
+            Reset Selection
+          </button>
         </div>
         <Sidebar
           highlights={highlights}
@@ -258,7 +297,10 @@ class App extends Component<{}, State> {
               <PdfHighlighter
                 categoryLabels={this.state.categoryLabels}
                 pdfDocument={pdfDocument}
-                enableAreaSelection={(event) => event.altKey}
+                selectionType={selectionType}
+                setSelectionType={(value) =>
+                  this.setState({ selectionType: value })
+                }
                 onScrollChange={resetHash}
                 // pdfScaleValue="page-width"
                 scrollRef={(scrollTo) => {

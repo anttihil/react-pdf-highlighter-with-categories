@@ -32,7 +32,7 @@ import {
 } from "../lib/pdfjs-dom";
 
 import TipContainer from "./TipContainer";
-import MouseSelection from "./MouseSelection";
+import AreaSelection from "./AreaSelection";
 
 import { scaledToViewport, viewportToScaled } from "../lib/coordinates";
 
@@ -132,7 +132,7 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
   viewer!: PDFViewer;
 
   resizeObserver: ResizeObserver | null = null;
-  containerNode?: HTMLDivElement | null = null;
+  containerNode: HTMLDivElement | null = null;
   viewerNode: HTMLDivElement | null = null;
 
   unsubscribe = () => {};
@@ -639,7 +639,7 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
 
   debouncedAfterSelection: () => void = debounce(this.afterSelection, 500);
 
-  toggleTextSelection(flag: boolean) {
+  disableTextSelection(flag: boolean) {
     this.viewer.viewer!.classList.toggle(
       "PdfHighlighter--disable-selection",
       flag
@@ -661,7 +661,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
       categoryLabels,
       setSelectionType,
     } = this.props;
-
     return (
       <div onPointerDown={this.onMouseDown}>
         <div
@@ -677,84 +676,82 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
             }}
           />
           {this.renderTip()}
-          <MouseSelection
-            categoryLabels={categoryLabels}
-            onDragStart={() => this.toggleTextSelection(true)}
-            onDragEnd={() => {
-              this.toggleTextSelection(false);
-              setSelectionType("");
-            }}
-            onChange={(isVisible) =>
-              this.setState({ isAreaSelectionInProgress: isVisible })
-            }
-            shouldStart={(event) =>
-              selectionType === "area" &&
-              isHTMLElement(event.target) &&
-              Boolean(asElement(event.target).closest(".page"))
-            }
-            onSelection={(
-              startTarget,
-              boundingRect,
-              resetSelection,
-              cLabels
-            ) => {
-              const page = getPageFromElement(startTarget);
-
-              if (!page) {
-                return;
+          {selectionType === "area" && (
+            <AreaSelection
+              container={this.containerNode}
+              categoryLabels={categoryLabels}
+              disableTextSelection={(value: boolean) =>
+                this.disableTextSelection(value)
               }
+              onChange={(isVisible) =>
+                this.setState({ isAreaSelectionInProgress: isVisible })
+              }
+              resetSelectionType={() => setSelectionType("")}
+              onSelection={(
+                startTarget,
+                boundingRect,
+                resetSelection,
+                cLabels
+              ) => {
+                const page = getPageFromElement(startTarget);
 
-              const pageBoundingRect = {
-                ...boundingRect,
-                top: boundingRect.top - page.node.offsetTop,
-                left: boundingRect.left - page.node.offsetLeft,
-                pageNumber: page.number,
-              };
+                if (!page) {
+                  return;
+                }
 
-              const viewportPosition = {
-                boundingRect: pageBoundingRect,
-                rects: [],
-                pageNumber: page.number,
-              };
+                const pageBoundingRect = {
+                  ...boundingRect,
+                  top: boundingRect.top - page.node.offsetTop,
+                  left: boundingRect.left - page.node.offsetLeft,
+                  pageNumber: page.number,
+                };
 
-              const scaledPosition =
-                this.viewportPositionToScaled(viewportPosition);
+                const viewportPosition = {
+                  boundingRect: pageBoundingRect,
+                  rects: [],
+                  pageNumber: page.number,
+                };
 
-              const image = this.screenshot(
-                pageBoundingRect,
-                pageBoundingRect.pageNumber
-              );
+                const scaledPosition =
+                  this.viewportPositionToScaled(viewportPosition);
 
-              this.setTip(
-                viewportPosition,
-                onSelectionFinished(
-                  scaledPosition,
-                  { image },
-                  () => this.hideTipAndSelection(),
-                  () =>
-                    this.setState(
-                      {
-                        ghostHighlight: {
-                          position: scaledPosition,
-                          content: { image },
+                const image = this.screenshot(
+                  pageBoundingRect,
+                  pageBoundingRect.pageNumber
+                );
+
+                this.setTip(
+                  viewportPosition,
+                  onSelectionFinished(
+                    scaledPosition,
+                    { image },
+                    () => this.hideTipAndSelection(),
+                    () =>
+                      this.setState(
+                        {
+                          ghostHighlight: {
+                            position: scaledPosition,
+                            content: { image },
+                          },
                         },
-                      },
-                      () => {
-                        resetSelection();
-                        this.renderHighlights();
-                      }
-                    ),
-                  cLabels
-                )
-              );
-            }}
-          />
+                        () => {
+                          resetSelection();
+                          this.renderHighlights();
+                        }
+                      ),
+                    cLabels
+                  )
+                );
+              }}
+            />
+          )}
         </div>
-        {this.containerNode && selectionType === "custom" && (
+        {selectionType == "custom" && (
           <CustomSelection
             container={this.containerNode}
+            onSelectionFailed={() => setSelectionType("area")}
+            onSelectionEnd={() => {}}
             viewer={this.viewer}
-            setSelectionType={setSelectionType}
           />
         )}
       </div>
