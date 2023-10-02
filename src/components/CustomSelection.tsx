@@ -1,29 +1,54 @@
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
-import React from "react";
+import React, { useMemo } from "react";
 import { useEffect, useState, useRef } from "react";
 import { getTextNodeAndOffset } from "../lib/selection-range-utils";
-
 interface CustomSelectionProps {
-  container?: HTMLDivElement | null;
+  container: HTMLDivElement | null;
   onSelectionFailed: () => void;
   onSelectionEnd: () => void;
   viewer: PDFViewer;
 }
+
+const getEventCanvasCoordinates = (e: PointerEvent, rect: DOMRect) => {
+  return [e.clientX - rect.left, e.clientY - rect.top];
+};
+
+const drawLine = (
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+) => {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+};
+
+const getCurrentTextLayer = (viewer: PDFViewer) => {
+  return viewer.getPageView(viewer.currentPageNumber - 1).textLayer?.div;
+};
+
 const CustomSelection = ({
   container,
   onSelectionFailed,
   onSelectionEnd,
   viewer,
 }: CustomSelectionProps) => {
-  const [isDrawing, setIsDrawing] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasCtx = useRef<CanvasRenderingContext2D | null>(null);
   const origin = useRef([0, 0]);
-  const textLayerRef = useRef<HTMLDivElement | null>(null);
   const range = useRef<Range>(document.createRange());
-  const startTime = useRef(0);
+  const drawStartTime = useRef(Infinity);
+
+  const canvasDOMRect = useMemo(() => {
+    if (!canvasRef.current) return null;
+    return canvasRef.current.getBoundingClientRect();
+  }, [canvasRef.current]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -47,66 +72,48 @@ const CustomSelection = ({
   useEffect(() => {
     if (!container) return;
     const handlePointerDown = (e: PointerEvent) => {
-      if (!canvasRef.current) return;
-      setIsDrawing(true);
-
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      origin.current = [x, y];
-
-      startTime.current = e.timeStamp;
+      if (!canvasDOMRect) return;
+      origin.current = getEventCanvasCoordinates(e, canvasDOMRect);
+      drawStartTime.current = e.timeStamp;
     };
     container.addEventListener("pointerdown", handlePointerDown);
     return () => {
       container.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [container]);
+  }, [container, canvasDOMRect]);
 
   useEffect(() => {
     if (!container) return;
     const handlePointerMove = (e: PointerEvent) => {
-      if (!isDrawing) return;
+      // Activate drawing and selecting after 50ms
+      if (e.timeStamp - drawStartTime.current < 50) return;
+
+      // disable normal selection and scrolling for mobile
       e.preventDefault();
 
       const ctx = canvasCtx.current;
-      if (!ctx || !canvasRef.current) return;
+      if (!ctx || !canvasDOMRect) return;
 
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      ctx.beginPath();
-      ctx.moveTo(origin.current[0], origin.current[1]);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-
-      // Activate selection after 50ms
-      if (e.timeStamp - startTime.current < 50) return;
+      const [x1, y1] = origin.current;
+      const [x2, y2] = getEventCanvasCoordinates(e, canvasDOMRect);
+      drawLine(ctx, x1, y1, x2, y2);
 
       const selection = window.getSelection();
       if (!selection) return;
 
-      // Get text layer for the current page
-      textLayerRef.current = viewer.getPageView(
-        viewer.currentPageNumber - 1
-      ).textLayer?.div;
-      if (!textLayerRef.current) return;
-
+      // initialize selection
       if (!isSelecting) {
         setIsSelecting(true);
         // Reset selection
-        selection?.empty();
+        selection.empty();
         range.current = document.createRange();
-        selection?.addRange(range.current);
+        selection.addRange(range.current);
       }
 
-      const { textNode, offset } = getTextNodeAndOffset(
-        e,
-        textLayerRef.current
-      );
+      const textLayer = getCurrentTextLayer(viewer);
+      if (!textLayer) return;
 
+      const { textNode, offset } = getTextNodeAndOffset(e, textLayer);
       if (textNode) {
         isSelecting
           ? range.current?.setEnd(textNode, offset)
@@ -124,19 +131,17 @@ const CustomSelection = ({
     return () => {
       container.removeEventListener("pointermove", handlePointerMove);
     };
-  }, [container, viewer, isDrawing, isSelecting]);
+  }, [container, viewer, isSelecting, canvasDOMRect, onSelectionFailed]);
 
   useEffect(() => {
     if (!container) return;
     function handlePointerUp() {
-      if (!isSelecting) {
-        return;
-      }
+      drawStartTime.current = Infinity;
+
+      if (!isSelecting) return;
 
       const canvasContext = canvasCtx.current;
-      if (!canvasContext) {
-        return;
-      }
+      if (!canvasContext) return;
 
       canvasContext.clearRect(
         0,
@@ -144,7 +149,7 @@ const CustomSelection = ({
         canvasContext.canvas.width,
         canvasContext.canvas.height
       );
-      setIsDrawing(false);
+
       setIsSelecting(false);
       onSelectionEnd();
     }

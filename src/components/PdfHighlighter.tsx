@@ -18,21 +18,17 @@ import "../style/pdf_viewer.css";
 
 import "../style/PdfHighlighter.css";
 
-import getBoundingRect from "../lib/get-bounding-rect";
-import getClientRects from "../lib/get-client-rects";
 import getAreaAsPng from "../lib/get-area-as-png";
 
 import {
   asElement,
   findOrCreateContainerLayer,
   getPageFromElement,
-  getPagesFromRange,
-  getWindow,
   isHTMLElement,
 } from "../lib/pdfjs-dom";
 
 import TipContainer from "./TipContainer";
-import AreaSelection from "./AreaSelection";
+import Selection from "./Selection";
 
 import { scaledToViewport, viewportToScaled } from "../lib/coordinates";
 
@@ -46,8 +42,6 @@ import type {
   SelectionType,
 } from "../types";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { addMissingSpacesToSelection } from "../lib/selection-range-utils";
-import CustomSelection from "./CustomSelection";
 
 type T_ViewportHighlight<T_HT> = { position: Position } & T_HT;
 
@@ -57,7 +51,6 @@ interface State<T_HT> {
     content?: { text?: string; image?: string };
   } | null;
   isCollapsed: boolean;
-  range: Range | null;
   tip: {
     highlight: T_ViewportHighlight<T_HT>;
     callback: (highlight: T_ViewportHighlight<T_HT>) => JSX.Element;
@@ -115,7 +108,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
   state: State<T_HT> = {
     ghostHighlight: null,
     isCollapsed: true,
-    range: null,
     scrolledToHighlightId: EMPTY_ID,
     isAreaSelectionInProgress: false,
     tip: null,
@@ -160,7 +152,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
       eventBus.on("textlayerrendered", this.onTextLayerRendered);
       eventBus.on("pagesinit", this.onDocumentReady);
       eventBus.on("pagechanging", this.onPageChange);
-      doc.addEventListener("selectionchange", this.onSelectionChange);
       doc.addEventListener("keydown", this.handleKeyDown);
       doc.defaultView?.addEventListener("resize", this.debouncedScaleValue);
       if (observer) observer.observe(ref);
@@ -169,7 +160,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
         eventBus.off("pagesinit", this.onDocumentReady);
         eventBus.off("textlayerrendered", this.onTextLayerRendered);
         eventBus.off("pagechanging", this.onPageChange);
-        doc.removeEventListener("selectionchange", this.onSelectionChange);
         doc.removeEventListener("keydown", this.handleKeyDown);
         doc.defaultView?.removeEventListener(
           "resize",
@@ -216,7 +206,10 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
     this.linkService.setDocument(pdfDocument);
     this.linkService.setViewer(this.viewer);
     this.viewer.setDocument(pdfDocument);
-
+    this.viewer.viewer!.classList.toggle(
+      "PdfHighlighter--disable-selection",
+      true
+    );
     // debug
     (window as any).PdfViewer = this;
   }
@@ -521,37 +514,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
 
   onPageChange = () => this.props.getCurrentPage(this.viewer.currentPageNumber);
 
-  onSelectionChange = () => {
-    const container = this.containerNode;
-    const selection = getWindow(container).getSelection();
-
-    if (!selection) {
-      return;
-    }
-
-    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-
-    if (selection.isCollapsed) {
-      this.setState({ isCollapsed: true });
-      return;
-    }
-
-    if (
-      !range ||
-      !container ||
-      !container.contains(range.commonAncestorContainer)
-    ) {
-      return;
-    }
-
-    this.setState({
-      isCollapsed: false,
-      range,
-    });
-
-    this.debouncedAfterSelection();
-  };
-
   onScroll = () => {
     const { onScrollChange } = this.props;
 
@@ -585,67 +547,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
     }
   };
 
-  afterSelection = () => {
-    const { onSelectionFinished } = this.props;
-
-    const { isCollapsed, range } = this.state;
-
-    if (!range || isCollapsed) {
-      return;
-    }
-
-    const pages = getPagesFromRange(range);
-
-    if (!pages || pages.length === 0) {
-      return;
-    }
-
-    const rects = getClientRects(range, pages);
-
-    if (rects.length === 0) {
-      return;
-    }
-    const boundingRect = getBoundingRect(rects);
-
-    const viewportPosition: Position = {
-      boundingRect,
-      rects,
-      pageNumber: pages[0].number,
-    };
-
-    const content = {
-      text: addMissingSpacesToSelection(range) || range.toString(),
-    };
-
-    const scaledPosition = this.viewportPositionToScaled(viewportPosition);
-
-    this.setTip(
-      viewportPosition,
-      onSelectionFinished(
-        scaledPosition,
-        content,
-        () => this.hideTipAndSelection(),
-        () =>
-          this.setState(
-            {
-              ghostHighlight: { position: scaledPosition },
-            },
-            () => this.renderHighlights()
-          ),
-        this.props.categoryLabels
-      )
-    );
-  };
-
-  debouncedAfterSelection: () => void = debounce(this.afterSelection, 500);
-
-  disableTextSelection(flag: boolean) {
-    this.viewer.viewer!.classList.toggle(
-      "PdfHighlighter--disable-selection",
-      flag
-    );
-  }
-
   handleScaleValue = () => {
     if (this.viewer) {
       this.viewer.currentScaleValue = this.props.pdfScaleValue; //"page-width";
@@ -676,84 +577,96 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
             }}
           />
           {this.renderTip()}
-          {selectionType === "area" && (
-            <AreaSelection
-              container={this.containerNode}
-              categoryLabels={categoryLabels}
-              disableTextSelection={(value: boolean) =>
-                this.disableTextSelection(value)
-              }
-              onChange={(isVisible) =>
-                this.setState({ isAreaSelectionInProgress: isVisible })
-              }
-              resetSelectionType={() => setSelectionType("")}
-              onSelection={(
-                startTarget,
-                boundingRect,
-                resetSelection,
-                cLabels
-              ) => {
-                const page = getPageFromElement(startTarget);
-
-                if (!page) {
-                  return;
-                }
-
-                const pageBoundingRect = {
-                  ...boundingRect,
-                  top: boundingRect.top - page.node.offsetTop,
-                  left: boundingRect.left - page.node.offsetLeft,
-                  pageNumber: page.number,
-                };
-
-                const viewportPosition = {
-                  boundingRect: pageBoundingRect,
-                  rects: [],
-                  pageNumber: page.number,
-                };
-
-                const scaledPosition =
-                  this.viewportPositionToScaled(viewportPosition);
-
-                const image = this.screenshot(
-                  pageBoundingRect,
-                  pageBoundingRect.pageNumber
-                );
-
-                this.setTip(
-                  viewportPosition,
-                  onSelectionFinished(
-                    scaledPosition,
-                    { image },
-                    () => this.hideTipAndSelection(),
-                    () =>
-                      this.setState(
-                        {
-                          ghostHighlight: {
-                            position: scaledPosition,
-                            content: { image },
-                          },
-                        },
-                        () => {
-                          resetSelection();
-                          this.renderHighlights();
-                        }
-                      ),
-                    cLabels
-                  )
-                );
-              }}
-            />
-          )}
-        </div>
-        {selectionType == "custom" && (
-          <CustomSelection
-            container={this.containerNode}
-            onSelectionFailed={() => setSelectionType("area")}
-            onSelectionEnd={() => {}}
+          <Selection
             viewer={this.viewer}
+            selectionType={selectionType}
+            onTextSelectionFailure={() => setSelectionType("area")}
+            container={this.containerNode}
+            categoryLabels={categoryLabels}
+            onChange={(isVisible) =>
+              this.setState({ isAreaSelectionInProgress: isVisible })
+            }
+            onTextSelectionChange={(
+              viewportPosition: Position,
+              scaledPosition: ScaledPosition,
+              content: { text: string }
+            ) => {
+              this.setTip(
+                viewportPosition,
+                onSelectionFinished(
+                  scaledPosition,
+                  content,
+                  () => this.hideTipAndSelection(),
+                  () =>
+                    this.setState(
+                      {
+                        ghostHighlight: { position: scaledPosition },
+                      },
+                      () => this.renderHighlights()
+                    ),
+                  this.props.categoryLabels
+                )
+              );
+            }}
+            onReset={() => setSelectionType("")}
+            onSelection={(
+              startTarget,
+              boundingRect,
+              resetSelection,
+              cLabels
+            ) => {
+              const page = getPageFromElement(startTarget);
+              console.log("page onSelection", page);
+              if (!page) {
+                return;
+              }
+
+              const pageBoundingRect = {
+                ...boundingRect,
+                top: boundingRect.top - page.node.offsetTop,
+                left: boundingRect.left - page.node.offsetLeft,
+                pageNumber: page.number,
+              };
+
+              const viewportPosition = {
+                boundingRect: pageBoundingRect,
+                rects: [],
+                pageNumber: page.number,
+              };
+
+              const scaledPosition =
+                this.viewportPositionToScaled(viewportPosition);
+
+              const image = this.screenshot(
+                pageBoundingRect,
+                pageBoundingRect.pageNumber
+              );
+
+              this.setTip(
+                viewportPosition,
+                onSelectionFinished(
+                  scaledPosition,
+                  { image },
+                  () => this.hideTipAndSelection(),
+                  () =>
+                    this.setState(
+                      {
+                        ghostHighlight: {
+                          position: scaledPosition,
+                          content: { image },
+                        },
+                      },
+                      () => {
+                        resetSelection();
+                        this.renderHighlights();
+                      }
+                    ),
+                  cLabels
+                )
+              );
+            }}
           />
-        )}
+        </div>
       </div>
     );
   }

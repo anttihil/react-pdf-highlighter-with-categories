@@ -157,6 +157,7 @@ class App extends Component<{}, State> {
 
   render() {
     const { url, highlights, data, selectionType } = this.state;
+    console.log("main selection type", selectionType);
     return (
       <div className="App" style={{ display: "flex", height: "100vh" }}>
         <div
@@ -171,7 +172,7 @@ class App extends Component<{}, State> {
           <button
             style={{
               width: "70px",
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
             }}
@@ -185,7 +186,7 @@ class App extends Component<{}, State> {
           </button>
           <div
             style={{
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
               textAlign: "center",
@@ -197,7 +198,7 @@ class App extends Component<{}, State> {
           <button
             style={{
               width: "70px",
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
             }}
@@ -214,7 +215,7 @@ class App extends Component<{}, State> {
           </button>
           <div
             style={{
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
               textAlign: "center",
@@ -226,7 +227,7 @@ class App extends Component<{}, State> {
           <button
             style={{
               width: "auto",
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
             }}
@@ -237,7 +238,7 @@ class App extends Component<{}, State> {
           <button
             style={{
               width: "auto",
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
               color: selectionType === "area" ? "white" : "black",
@@ -249,19 +250,19 @@ class App extends Component<{}, State> {
           <button
             style={{
               width: "auto",
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
-              color: selectionType === "custom" ? "white" : "black",
+              color: selectionType === "text" ? "white" : "black",
             }}
-            onClick={() => this.setState({ selectionType: "custom" })}
+            onClick={() => this.setState({ selectionType: "text" })}
           >
-            Custom Selection
+            Text Selection
           </button>
           <button
             style={{
               width: "auto",
-              height: "20px",
+              minHeight: "20px",
               backgroundColor: "grey",
               borderRadius: "5px",
             }}

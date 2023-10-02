@@ -77,4 +77,4 @@ export interface Page {
   number: number;
 }
 
-export type SelectionType = "area" | "custom" | "";
+export type SelectionType = "area" | "text" | "";

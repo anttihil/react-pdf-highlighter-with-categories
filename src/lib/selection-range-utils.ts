@@ -1,3 +1,13 @@
+import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
+import {
+  asElement,
+  findOrCreateContainerLayer,
+  getPageFromElement,
+  getPagesFromRange,
+  getWindow,
+  isHTMLElement,
+} from "./pdfjs-dom";
+
 export const getTextNodesInRange = (range: Range) => {
   const container = range.commonAncestorContainer;
 
@@ -107,11 +117,20 @@ export const getTextAtPoint = (e: PointerEvent) => {
 };
 
 /**If no text node is found, find the first text node below the pointer */
-export const getNextTextNode = (e: PointerEvent, textLayer: HTMLDivElement) => {
+export const getNextTextNode = (e: PointerEvent, viewer: PDFViewer) => {
+  // TODO: use target to get text layer
+  const textLayer = viewer.getPageView(viewer.currentPageNumber - 1).textLayer
+    ?.div;
+  if (!textLayer) {
+    return null;
+  }
+
   let textNode: Text | null = null;
   let textRect: DOMRect;
+
   const tempRange = document.createRange();
   const walk = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT);
+  // TODO: move backwards if direction is up
   while (walk.nextNode()) {
     // We need to create a range to get the bounding rect of the text node
     tempRange.selectNode(walk.currentNode);
@@ -125,10 +144,8 @@ export const getNextTextNode = (e: PointerEvent, textLayer: HTMLDivElement) => {
 };
 
 /** Get the text node and offset at the pointer position */
-export const getTextNodeAndOffset = (
-  e: PointerEvent,
-  textLayer: HTMLDivElement
-) => {
+export const getTextNodeAndOffset = (e: PointerEvent, viewer: PDFViewer) => {
   const { textNode, offset } = getTextAtPoint(e);
-  return { textNode: textNode || getNextTextNode(e, textLayer), offset };
+
+  return { textNode: textNode || getNextTextNode(e, viewer), offset };
 };
