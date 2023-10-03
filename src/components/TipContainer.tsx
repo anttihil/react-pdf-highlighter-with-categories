@@ -1,106 +1,117 @@
-import React, { Component } from "react";
+import React, {
+  Children,
+  cloneElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
-import type { LTWHP } from "../types";
-
-interface State {
-  height: number;
-  width: number;
-}
+import type { Position } from "../types";
+import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
 
 interface Props {
   children: JSX.Element | null;
-  style: { top: number; left: number; bottom: number };
-  scrollTop: number;
-  pageBoundingRect: LTWHP;
+  tipPosition: Position | null;
+  viewer: PDFViewer;
 }
 
 const clamp = (value: number, left: number, right: number) =>
   Math.min(Math.max(value, left), right);
 
-class TipContainer extends Component<Props, State> {
-  state: State = {
-    height: 0,
-    width: 0,
-  };
+const TipContainer = ({ children, tipPosition, viewer }: Props) => {
+  const [size, setSize] = useState({ width: 0, height: 0 });
 
-  node: HTMLDivElement | null = null;
+  const node = useRef<HTMLDivElement>(null);
 
-  componentDidUpdate(nextProps: Props) {
-    if (this.props.children !== nextProps.children) {
-      this.updatePosition();
-    }
-  }
-
-  componentDidMount() {
-    setTimeout(this.updatePosition, 0);
-  }
-
-  updatePosition = () => {
-    if (!this.node) {
+  const updatePosition = useCallback(() => {
+    if (!node.current) {
       return;
     }
 
-    const { offsetHeight, offsetWidth } = this.node;
+    const { offsetHeight, offsetWidth } = node.current;
 
-    this.setState({
+    setSize({
       height: offsetHeight,
       width: offsetWidth,
     });
+  }, []);
+
+  // initial position update
+  useLayoutEffect(() => {
+    updatePosition();
+  }, [updatePosition]);
+
+  useEffect(() => {
+    if (!node.current) {
+      return;
+    }
+    const observer = new MutationObserver(updatePosition);
+    observer.observe(node.current, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+  }, [updatePosition]);
+
+  if (!tipPosition) return null;
+
+  const { boundingRect, pageNumber } = tipPosition;
+
+  const page = {
+    node: viewer.getPageView((boundingRect.pageNumber || pageNumber) - 1).div,
+    pageNumber: boundingRect.pageNumber || pageNumber,
   };
 
-  render() {
-    const { children, style, scrollTop, pageBoundingRect } = this.props;
+  const pageBoundingClientRect = page.node.getBoundingClientRect();
 
-    const { height, width } = this.state;
+  const { height, width } = size;
 
-    const isStyleCalculationInProgress = width === 0 && height === 0;
+  const style = {
+    left: page.node.offsetLeft + boundingRect.left + boundingRect.width / 2,
+    top: boundingRect.top + page.node.offsetTop,
+    bottom: boundingRect.top + page.node.offsetTop + boundingRect.height,
+  };
 
-    const shouldMove = style.top - height - 5 < scrollTop;
+  const scrollTop = viewer.container.scrollTop;
 
-    const top = shouldMove ? style.bottom + 5 : style.top - height - 5;
+  const shouldMove = style.top - height - 5 < scrollTop;
 
-    const left = clamp(
-      style.left - width / 2,
-      0,
-      pageBoundingRect.width - width
-    );
+  const top = shouldMove ? style.bottom + 5 : style.top - height - 5;
 
-    const childrenWithProps = React.Children.map(children, (child) =>
-      // @ts-ignore
-      React.cloneElement(child, {
-        onUpdate: () => {
-          this.setState(
-            {
-              width: 0,
-              height: 0,
+  const left = clamp(
+    style.left - width / 2,
+    0,
+    pageBoundingClientRect.width - width
+  );
+
+  const isStyleCalculationInProgress = width === 0 && height === 0;
+
+  return (
+    <div
+      className="PdfHighlighter__tip-container"
+      style={{
+        visibility: isStyleCalculationInProgress ? "hidden" : "visible",
+        top,
+        left,
+      }}
+      ref={node}
+    >
+      {children &&
+        Children.map(children, (child) =>
+          cloneElement(child, {
+            onUpdate: () => {
+              setSize({
+                width: 0,
+                height: 0,
+              });
+              setTimeout(updatePosition, 0);
             },
-            () => {
-              setTimeout(this.updatePosition, 0);
-            }
-          );
-        },
-        popup: {
-          position: shouldMove ? "below" : "above",
-        },
-      })
-    );
-
-    return (
-      <div
-        className="PdfHighlighter__tip-container"
-        style={{
-          visibility: isStyleCalculationInProgress ? "hidden" : "visible",
-          top,
-          left,
-        }}
-        ref={(node) => {
-          this.node = node;
-        }}
-      >
-        {childrenWithProps}
-      </div>
-    );
-  }
-}
+          })
+        )}
+    </div>
+  );
+};
 
 export default TipContainer;
