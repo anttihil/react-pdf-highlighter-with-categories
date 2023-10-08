@@ -157,7 +157,6 @@ class App extends Component<{}, State> {
 
   render() {
     const { url, highlights, data, selectionType } = this.state;
-    console.log("main selection type", selectionType);
     return (
       <div className="App" style={{ display: "flex", height: "100vh" }}>
         <div

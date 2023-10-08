@@ -206,10 +206,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
     this.linkService.setDocument(pdfDocument);
     this.linkService.setViewer(this.viewer);
     this.viewer.setDocument(pdfDocument);
-    this.viewer.viewer!.classList.toggle(
-      "PdfHighlighter--disable-selection",
-      true
-    );
     // debug
     (window as any).PdfViewer = this;
   }
@@ -533,6 +529,9 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
             className="pdfViewer"
             ref={(ref) => {
               this.viewerNode = ref;
+              ref?.addEventListener("selectstart", (e) => {
+                e.preventDefault();
+              }); // disable text selection
             }}
           />
           <TipContainer
@@ -580,7 +579,6 @@ export class PdfHighlighter<T_HT extends IHighlight> extends PureComponent<
               cLabels
             ) => {
               const page = getPageFromElement(startTarget);
-              console.log("page onSelection", page);
               if (!page) {
                 return;
               }

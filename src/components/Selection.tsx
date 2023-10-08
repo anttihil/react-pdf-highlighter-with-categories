@@ -119,6 +119,10 @@ const Selection = ({
   const startTarget = useRef<HTMLElement | null>(null);
   const range = useRef<Range>(document.createRange());
   const startTime = useRef(Infinity);
+  const [startNode, setStartNode] = useState<{
+    textNode: Text;
+    offset: number;
+  } | null>(null);
 
   const containerBoundingRect = useMemo(
     () => container?.getBoundingClientRect(),
@@ -136,7 +140,6 @@ const Selection = ({
   useEffect(() => {
     const onSelectionChange = () => {
       const selection = window.getSelection();
-
       if (!selection) {
         return;
       }
@@ -187,7 +190,6 @@ const Selection = ({
         const content = {
           text: addMissingSpacesToSelection(range.current) || range.toString(),
         };
-
         const scaledPosition = viewportPositionToScaled(
           viewportPosition,
           viewer
@@ -202,7 +204,7 @@ const Selection = ({
     return () => {
       document.removeEventListener("selectionchange", onSelectionChange);
     };
-  }, [container, range.current, viewer, isSelectionCollapsed]);
+  }, [container, viewer, isSelectionCollapsed]);
 
   useEffect(() => {
     const { start, end } = state;
@@ -234,10 +236,7 @@ const Selection = ({
           // go into text selection mode
           const selection = window.getSelection();
           selection?.empty();
-          range.current = document.createRange();
-          // TODO: instead of adding a range, save start node and offset and use Selection.setBaseAndExtent on move and up
-          selection?.addRange(range.current);
-          range.current.setStart(textNode, offset);
+          setStartNode({ textNode, offset });
         } else {
           onTextSelectionFailure();
         }
@@ -270,14 +269,20 @@ const Selection = ({
     if (!container) return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!selectionType || !state.start || state.locked) return;
+      if (!selectionType || !state.start || state.locked || !startNode) return;
 
       if (shouldRejectShortSelect(event, startTime.current)) return;
 
       if (selectionType === "text") {
         const { textNode, offset } = getTextNodeAndOffset(event, viewer);
         if (textNode) {
-          range.current?.setEnd(textNode, offset);
+          const selection = window.getSelection();
+          selection?.setBaseAndExtent(
+            startNode.textNode,
+            startNode.offset,
+            textNode,
+            offset
+          );
         }
       }
 
@@ -299,7 +304,14 @@ const Selection = ({
     return () => {
       container.removeEventListener("pointermove", handlePointerMove);
     };
-  }, [selectionType, state, container, containerBoundingRect]);
+  }, [
+    selectionType,
+    state,
+    container,
+    containerBoundingRect,
+    viewer,
+    startNode,
+  ]);
 
   useEffect(() => {
     const handlePointerUp = (event: PointerEvent): void => {
@@ -307,7 +319,8 @@ const Selection = ({
         !selectionType ||
         !container ||
         !state.start ||
-        shouldRejectShortSelect(event, startTime.current)
+        shouldRejectShortSelect(event, startTime.current) ||
+        !startNode
       ) {
         reset();
         return;
@@ -334,7 +347,13 @@ const Selection = ({
       if (selectionType === "text") {
         const { textNode, offset } = getTextNodeAndOffset(event, viewer);
         if (textNode) {
-          range.current?.setEnd(textNode, offset);
+          const selection = window.getSelection();
+          selection?.setBaseAndExtent(
+            startNode.textNode,
+            startNode.offset,
+            textNode,
+            offset
+          ); // set the selection to the new range
         }
       }
 
@@ -358,6 +377,9 @@ const Selection = ({
     state.start,
     containerBoundingRect,
     selectionType,
+    categoryLabels,
+    startNode,
+    viewer,
   ]);
 
   return (

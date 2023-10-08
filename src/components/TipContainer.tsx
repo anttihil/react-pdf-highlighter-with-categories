@@ -1,12 +1,4 @@
-import React, {
-  Children,
-  cloneElement,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 
 import type { Position } from "../types";
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
@@ -25,35 +17,17 @@ const TipContainer = ({ children, tipPosition, viewer }: Props) => {
 
   const node = useRef<HTMLDivElement>(null);
 
-  const updatePosition = useCallback(() => {
+  useLayoutEffect(() => {
     if (!node.current) {
       return;
     }
 
     const { offsetHeight, offsetWidth } = node.current;
-
     setSize({
       height: offsetHeight,
       width: offsetWidth,
     });
-  }, []);
-
-  // initial position update
-  useLayoutEffect(() => {
-    updatePosition();
-  }, [updatePosition]);
-
-  useEffect(() => {
-    if (!node.current) {
-      return;
-    }
-    const observer = new MutationObserver(updatePosition);
-    observer.observe(node.current, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
-  }, [updatePosition]);
+  }, [children]);
 
   if (!tipPosition) return null;
 
@@ -98,18 +72,7 @@ const TipContainer = ({ children, tipPosition, viewer }: Props) => {
       }}
       ref={node}
     >
-      {children &&
-        Children.map(children, (child) =>
-          cloneElement(child, {
-            onUpdate: () => {
-              setSize({
-                width: 0,
-                height: 0,
-              });
-              setTimeout(updatePosition, 0);
-            },
-          })
-        )}
+      {children}
     </div>
   );
 };

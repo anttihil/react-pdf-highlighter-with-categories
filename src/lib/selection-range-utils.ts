@@ -1,12 +1,4 @@
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
-import {
-  asElement,
-  findOrCreateContainerLayer,
-  getPageFromElement,
-  getPagesFromRange,
-  getWindow,
-  isHTMLElement,
-} from "./pdfjs-dom";
 
 export const getTextNodesInRange = (range: Range) => {
   const container = range.commonAncestorContainer;
@@ -146,6 +138,5 @@ export const getNextTextNode = (e: PointerEvent, viewer: PDFViewer) => {
 /** Get the text node and offset at the pointer position */
 export const getTextNodeAndOffset = (e: PointerEvent, viewer: PDFViewer) => {
   const { textNode, offset } = getTextAtPoint(e);
-
   return { textNode: textNode || getNextTextNode(e, viewer), offset };
 };

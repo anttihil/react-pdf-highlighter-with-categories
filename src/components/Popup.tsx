@@ -1,6 +1,4 @@
-import React, { Component } from "react";
-
-import MouseMonitor from "./MouseMonitor";
+import React from "react";
 
 interface Props {
   onMouseOver: (content: JSX.Element) => void;
@@ -9,46 +7,25 @@ interface Props {
   children: JSX.Element;
 }
 
-interface State {
-  mouseIn: boolean;
-}
-
-export class Popup extends Component<Props, State> {
-  state: State = {
-    mouseIn: false,
-  };
-
-  render() {
-    const { onMouseOver, popupContent, onMouseOut } = this.props;
-
-    return (
-      <div
-        onMouseOver={() => {
-          this.setState({ mouseIn: true });
-
-          onMouseOver(
-            <MouseMonitor
-              onMoveAway={() => {
-                if (this.state.mouseIn) {
-                  return;
-                }
-
-                onMouseOut();
-              }}
-              paddingX={60}
-              paddingY={30}
-              children={popupContent}
-            />
-          );
-        }}
-        onMouseOut={() => {
-          this.setState({ mouseIn: false });
-        }}
-      >
-        {this.props.children}
-      </div>
-    );
-  }
-}
+export const Popup = ({
+  onMouseOver,
+  popupContent,
+  onMouseOut,
+  children,
+}: Props) => {
+  return (
+    <div
+      className="Popup"
+      onMouseEnter={() => {
+        onMouseOver(popupContent);
+      }}
+      onMouseLeave={() => {
+        onMouseOut();
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 export default Popup;
