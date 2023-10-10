@@ -1,5 +1,6 @@
 import { isHTMLCanvasElement } from "./pdfjs-dom";
-import type { LTWHP } from "../types.js";
+import type { LTWH, LTWHP } from "../types.js";
+import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
 
 const getAreaAsPNG = (canvas: HTMLCanvasElement, position: LTWHP): string => {
   const { left, top, width, height } = position;
@@ -38,4 +39,12 @@ const getAreaAsPNG = (canvas: HTMLCanvasElement, position: LTWHP): string => {
   return newCanvas.toDataURL("image/png");
 };
 
-export default getAreaAsPNG;
+export function screenshot(
+  position: LTWH,
+  pageNumber: number,
+  viewer: PDFViewer
+) {
+  const canvas = viewer.getPageView(pageNumber - 1).canvas;
+
+  return getAreaAsPNG(canvas, position);
+}

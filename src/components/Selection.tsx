@@ -5,6 +5,7 @@ import "../style/Selection.css";
 
 import type {
   LTWH,
+  LTWHP,
   Position,
   ScaledPosition,
   SelectionType,
@@ -18,6 +19,9 @@ import debounce from "lodash.debounce";
 import getClientRects from "../lib/get-client-rects";
 import getBoundingRect from "../lib/get-bounding-rect";
 import { viewportToScaled } from "../lib/coordinates";
+import Highlight from "./Highlight";
+import { createPortal } from "react-dom";
+import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-layer";
 
 interface Coords {
   x: number;
@@ -124,10 +128,17 @@ const Selection = ({
     offset: number;
   } | null>(null);
 
+  const [selectionPosition, setSelectionPosition] = useState<{
+    rects: LTWHP[];
+    boundingRect: LTWHP;
+  } | null>(null);
+
   const containerBoundingRect = useMemo(
     () => container?.getBoundingClientRect(),
     [container]
   );
+
+  const selectionLayer = useRef<Element | null>(null);
 
   const reset = () => {
     const selection = window.getSelection();
@@ -138,7 +149,7 @@ const Selection = ({
   };
 
   useEffect(() => {
-    const onSelectionChange = () => {
+    const onSelectionChange = (e: Event) => {
       const selection = window.getSelection();
       if (!selection) {
         return;
@@ -146,6 +157,8 @@ const Selection = ({
 
       const updatedRange =
         selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+      console.log("updatedRange", updatedRange, selection.isCollapsed);
 
       if (selection.isCollapsed) {
         setSelectionCollapsed(true);
@@ -163,6 +176,7 @@ const Selection = ({
       setSelectionCollapsed(false);
       range.current = updatedRange;
 
+      console.log("continue");
       debounce(() => {
         if (!range.current || isSelectionCollapsed) {
           return;
@@ -194,9 +208,13 @@ const Selection = ({
           viewportPosition,
           viewer
         );
-
+        selectionLayer.current = findOrCreateHighlightLayer(
+          pages[0].number,
+          viewer
+        ); // TODO: remove this
+        setSelectionPosition({ boundingRect, rects });
         onTextSelectionChange(viewportPosition, scaledPosition, content);
-      }, 500)();
+      }, 100)();
     };
 
     document.addEventListener("selectionchange", onSelectionChange);
@@ -277,6 +295,7 @@ const Selection = ({
         const { textNode, offset } = getTextNodeAndOffset(event, viewer);
         if (textNode) {
           const selection = window.getSelection();
+
           selection?.setBaseAndExtent(
             startNode.textNode,
             startNode.offset,
@@ -392,6 +411,16 @@ const Selection = ({
           style={getSelectionBoxBoundingRect(state.start, state.end)}
         />
       ) : null}
+      {selectionPosition &&
+        selectionLayer.current &&
+        createPortal(
+          <Highlight
+            position={selectionPosition}
+            categoryLabels={categoryLabels}
+            isScrolledTo={false}
+          />,
+          selectionLayer.current
+        )}
     </>
   );
 };
