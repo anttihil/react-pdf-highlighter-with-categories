@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import { IHighlight, LTWHP, Position, ScaledPosition } from "../types";
+import {
+  IHighlight,
+  LTWHP,
+  Position,
+  ScaledPosition,
+  ViewportHighlight,
+} from "../types";
 import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-layer";
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
 import React from "react";
@@ -11,27 +17,27 @@ import { viewportToScaled } from "../lib/coordinates";
 import { createPortal } from "react-dom";
 import { screenshot } from "../lib/screenshot";
 
-type T_ViewportHighlight<Highlight> = { position: Position } & Highlight;
-
-interface Props<Highlight> {
-  highlights: Highlight[];
-  ghostHighlight?: Highlight;
+interface Props {
+  highlights: IHighlight[];
+  ghostHighlight?: {
+    position: ScaledPosition;
+    content?: { text?: string; image?: string };
+  } | null;
   visiblePages: number[];
   viewer: PDFViewer;
-  tip: {
-    highlight: Highlight;
-    callback: (highlight: Highlight) => JSX.Element;
-  };
   scrolledToHighlightId: string;
   categoryLabels: Array<{ label: string; background: string }>;
-  setTip: (position: Position, inner: JSX.Element | null) => void;
+  setTip: (tip: {
+    position: Position | null;
+    inner: JSX.Element | null;
+  }) => void;
   hideTip: () => void;
   updateHighlight: (
     highlightId: string,
     position: Object,
     content: Object
   ) => void;
-  popupContent: (highlight: Highlight) => JSX.Element;
+  popupContent: (highlight: ViewportHighlight) => JSX.Element;
   selectionInProgress: boolean;
 }
 export const Highlights = ({
@@ -39,30 +45,20 @@ export const Highlights = ({
   ghostHighlight,
   visiblePages,
   viewer,
-  tip,
   scrolledToHighlightId,
   categoryLabels,
   setTip,
   hideTip,
   updateHighlight,
   popupContent,
-  selectionInProgress,
-}: Props<IHighlight>) => {
-  const showTip = (
-    highlight: T_ViewportHighlight<IHighlight>,
-    content: JSX.Element
-  ) => {
-    if (selectionInProgress) {
-      return;
-    }
-
-    setTip(highlight.position, content);
-  };
-
+}: Props) => {
   const highlightsByPage = useMemo(() => {
     const groupHighlightsByPage = (
       highlights: Array<IHighlight>,
-      ghostHighlight?: IHighlight
+      ghostHighlight?: {
+        position: ScaledPosition;
+        content?: { text?: string; image?: string };
+      } | null
     ): {
       [pageNumber: string]: Array<IHighlight>;
     } => {
@@ -112,88 +108,83 @@ export const Highlights = ({
     return groupHighlightsByPage(highlights, ghostHighlight);
   }, [highlights, ghostHighlight]);
 
-  const highlightLayers = visiblePages.map((pageNumber) => ({
-    element: findOrCreateHighlightLayer(pageNumber, viewer),
-    pageNumber,
-  }));
+  const highlightLayers = useMemo(
+    () =>
+      visiblePages.map((pageNumber) => ({
+        element: findOrCreateHighlightLayer(pageNumber, viewer),
+        pageNumber,
+      })),
+    [visiblePages, viewer]
+  );
+
+  const renderHighlightsOnPage = (pageNumber: number) =>
+    (highlightsByPage[String(pageNumber)] || []).map(
+      ({ position, id, ...highlight }, index) => {
+        const viewportHighlight: ViewportHighlight = {
+          id,
+          position: scaledPositionToViewport(position, viewer),
+          ...highlight,
+        };
+
+        const isScrolledTo = Boolean(scrolledToHighlightId === id);
+
+        const isTextHighlight = !Boolean(
+          highlight.content && highlight.content.image
+        );
+
+        return (
+          <Popup
+            popupContent={popupContent(viewportHighlight)}
+            onMouseOver={(popupContent) => {
+              setTip({
+                position: viewportHighlight.position,
+                inner: popupContent,
+              });
+            }}
+            onMouseOut={hideTip}
+            key={index}
+          >
+            {isTextHighlight ? (
+              <Highlight
+                isScrolledTo={isScrolledTo}
+                position={viewportHighlight.position}
+                comment={viewportHighlight.comment}
+                categoryLabels={categoryLabels}
+              />
+            ) : (
+              <AreaHighlight
+                isScrolledTo={isScrolledTo}
+                highlight={viewportHighlight}
+                onChange={(boundingRect) => {
+                  const rectToScaled = (rect: LTWHP) => {
+                    const viewport = viewer.getPageView(
+                      (rect.pageNumber || pageNumber) - 1
+                    ).viewport;
+
+                    return viewportToScaled(rect, viewport);
+                  };
+                  const updateImage = (boundingRect: LTWHP) =>
+                    screenshot(boundingRect, pageNumber, viewer);
+                  updateHighlight(
+                    viewportHighlight.id,
+                    { boundingRect: rectToScaled(boundingRect) },
+                    { image: updateImage(boundingRect) }
+                  );
+                }}
+                comment={highlight.comment}
+                categoryLabels={categoryLabels}
+              />
+            )}
+          </Popup>
+        );
+      }
+    );
 
   return (
     <div>
       {highlightLayers.map(({ element, pageNumber }) => {
         if (!element) return null;
-        return createPortal(
-          (highlightsByPage[String(pageNumber)] || []).map(
-            ({ position, id, ...highlight }, index) => {
-              const viewportHighlight: T_ViewportHighlight<IHighlight> = {
-                id,
-                position: scaledPositionToViewport(position, viewer),
-                ...highlight,
-              };
-
-              if (tip && tip.highlight.id === String(id)) {
-                showTip(viewportHighlight, tip.callback(viewportHighlight));
-              }
-
-              const isScrolledTo = Boolean(scrolledToHighlightId === id);
-
-              const isTextHighlight = !Boolean(
-                highlight.content && highlight.content.image
-              );
-
-              return (
-                <Popup
-                  popupContent={popupContent(viewportHighlight)}
-                  onMouseOver={(popupContent) => {
-                    /* const setTip = (highlight, callback) => {
-              this.setState({
-                tip: { highlight, callback },
-              });
-
-              this.showTip(highlight, callback(highlight));
-            }, */
-                    showTip(viewportHighlight, popupContent);
-                  }}
-                  /* hideTipAndSelection, */
-                  onMouseOut={hideTip}
-                  key={index}
-                >
-                  {isTextHighlight ? (
-                    <Highlight
-                      isScrolledTo={isScrolledTo}
-                      position={viewportHighlight.position}
-                      comment={viewportHighlight.comment}
-                      categoryLabels={categoryLabels}
-                    />
-                  ) : (
-                    <AreaHighlight
-                      isScrolledTo={isScrolledTo}
-                      highlight={viewportHighlight}
-                      onChange={(boundingRect) => {
-                        const rectToScaled = (rect: LTWHP) => {
-                          const viewport = viewer.getPageView(
-                            (rect.pageNumber || pageNumber) - 1
-                          ).viewport;
-
-                          return viewportToScaled(rect, viewport);
-                        };
-                        const updateImage = (boundingRect: LTWHP) =>
-                          screenshot(boundingRect, pageNumber, viewer);
-                        updateHighlight(
-                          viewportHighlight.id,
-                          { boundingRect: rectToScaled(boundingRect) },
-                          { image: updateImage(boundingRect) }
-                        );
-                      }}
-                      comment={highlight.comment}
-                      categoryLabels={categoryLabels}
-                    />
-                  )}
-                </Popup>
-              );
-            }
-          ),
-          element
-        );
+        return createPortal(renderHighlightsOnPage(pageNumber), element);
       })}
     </div>
   );

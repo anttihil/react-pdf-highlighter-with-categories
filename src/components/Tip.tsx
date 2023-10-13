@@ -69,5 +69,3 @@ export const Tip = ({ onConfirm, onOpen, categoryLabels }: Props) => {
     </div>
   );
 };
-
-export default Tip;

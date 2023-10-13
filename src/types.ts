@@ -61,7 +61,7 @@ export interface IHighlight extends NewHighlight {
   id: string;
 }
 
-export interface ViewportHighlight extends HighlightContent, HighlightComment {
+export interface ViewportHighlight extends Omit<IHighlight, "position"> {
   position: Position;
 }
 

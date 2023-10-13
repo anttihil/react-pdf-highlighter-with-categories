@@ -40,17 +40,6 @@ const resetHash = () => {
   document.location.hash = "";
 };
 
-const HighlightPopup = ({
-  comment,
-}: {
-  comment: { text: string; category: string };
-}) =>
-  comment.text ? (
-    <div className="Highlight__popup">
-      {comment.category} {comment.text}
-    </div>
-  ) : null;
-
 const PRIMARY_PDF_URL = "https://arxiv.org/pdf/1708.08021.pdf";
 const SECONDARY_PDF_URL = "https://arxiv.org/pdf/1604.02480.pdf";
 
@@ -295,6 +284,7 @@ class App extends Component<{}, State> {
           <PdfLoader url={url} beforeLoad={<Spinner />} data={data}>
             {(pdfDocument) => (
               <PdfHighlighter
+                pdfScaleValue={"auto"}
                 categoryLabels={this.state.categoryLabels}
                 pdfDocument={pdfDocument}
                 selectionType={selectionType}
@@ -326,60 +316,12 @@ class App extends Component<{}, State> {
                     onOpen={transformSelection}
                     onConfirm={(comment) => {
                       this.addHighlight({ content, position, comment });
-
+                      console.log("comment", comment);
                       hideTipAndSelection();
                     }}
                     categoryLabels={categoryLabels}
                   />
                 )}
-                highlightTransform={(
-                  highlight,
-                  index,
-                  setTip,
-                  hideTip,
-                  viewportToScaled,
-                  screenshot,
-                  isScrolledTo
-                ) => {
-                  const isTextHighlight = !Boolean(
-                    highlight.content && highlight.content.image
-                  );
-
-                  const component = isTextHighlight ? (
-                    <Highlight
-                      isScrolledTo={isScrolledTo}
-                      position={highlight.position}
-                      comment={highlight.comment}
-                      categoryLabels={this.state.categoryLabels}
-                    />
-                  ) : (
-                    <AreaHighlight
-                      isScrolledTo={isScrolledTo}
-                      highlight={highlight}
-                      onChange={(boundingRect) => {
-                        this.updateHighlight(
-                          highlight.id,
-                          { boundingRect: viewportToScaled(boundingRect) },
-                          { image: screenshot(boundingRect) }
-                        );
-                      }}
-                      comment={highlight.comment}
-                      categoryLabels={this.state.categoryLabels}
-                    />
-                  );
-
-                  return (
-                    <Popup
-                      popupContent={<HighlightPopup {...highlight} />}
-                      onMouseOver={(popupContent) =>
-                        setTip(highlight, (highlight) => popupContent)
-                      }
-                      onMouseOut={hideTip}
-                      key={index}
-                      children={component}
-                    />
-                  );
-                }}
                 highlights={highlights}
               />
             )}
