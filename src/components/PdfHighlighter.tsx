@@ -306,110 +306,110 @@ export const PdfHighlighter = ({
         style={style}
       >
         <div className="pdfViewer" />
-        {viewer.current && (
-          <TipContainer tipPosition={tip.position} viewer={viewer.current}>
-            {tip.inner}
-          </TipContainer>
-        )}
-        {viewer.current && (
-          <Highlights
-            viewer={viewer.current}
-            highlights={highlights}
-            ghostHighlight={ghostHighlight}
-            visiblePages={visiblePages}
-            scrolledToHighlightId={scrolledToHighlightId}
-            categoryLabels={categoryLabels}
-            setTip={setTip}
-            hideTip={hideTipAndSelection}
-            updateHighlight={(highlightId, position, content) => {}}
-            selectionInProgress={selectionInProgress}
-            popupContent={(highlight) => <HighlightPopup {...highlight} />}
-          />
-        )}
         {viewer.current && containerNode.current && (
-          <Selection
-            viewer={viewer.current}
-            selectionType={selectionType}
-            onTextSelectionFailure={() => setSelectionType("area")}
-            container={containerNode.current}
-            categoryLabels={categoryLabels}
-            onChange={(isVisible) => setIsAreaSelectionInProgress(isVisible)}
-            onTextSelectionChange={(
-              viewportPosition: Position,
-              scaledPosition: ScaledPosition,
-              content: { text: string }
-            ) => {
-              setTip({
-                position: viewportPosition,
-                inner: onSelectionFinished(
-                  scaledPosition,
-                  content,
-                  hideTipAndSelection,
-                  () =>
-                    setGhostHighlight((prev) => ({
-                      ...prev,
-                      position: scaledPosition,
-                    })),
+          <>
+            <TipContainer tipPosition={tip.position} viewer={viewer.current}>
+              {tip.inner}
+            </TipContainer>
 
-                  categoryLabels
-                ),
-              });
-            }}
-            onReset={() => setSelectionType("")}
-            onSelection={(
-              startTarget,
-              boundingRect,
-              resetSelection,
-              cLabels
-            ) => {
-              const page = getPageFromElement(startTarget);
-              if (!page || !viewer.current) {
-                return;
-              }
+            <Highlights
+              viewer={viewer.current}
+              highlights={highlights}
+              ghostHighlight={ghostHighlight}
+              visiblePages={visiblePages}
+              scrolledToHighlightId={scrolledToHighlightId}
+              categoryLabels={categoryLabels}
+              setTip={setTip}
+              hideTip={hideTipAndSelection}
+              updateHighlight={(highlightId, position, content) => {}}
+              selectionInProgress={selectionInProgress}
+              popupContent={(highlight) => <HighlightPopup {...highlight} />}
+            />
 
-              const pageBoundingRect = {
-                ...boundingRect,
-                top: boundingRect.top - page.node.offsetTop,
-                left: boundingRect.left - page.node.offsetLeft,
-                pageNumber: page.number,
-              };
+            <Selection
+              viewer={viewer.current}
+              selectionType={selectionType}
+              onTextSelectionFailure={() => setSelectionType("area")}
+              container={containerNode.current}
+              categoryLabels={categoryLabels}
+              onChange={(isVisible) => setIsAreaSelectionInProgress(isVisible)}
+              onTextSelectionChange={(
+                viewportPosition: Position,
+                scaledPosition: ScaledPosition,
+                content: { text: string }
+              ) => {
+                setTip({
+                  position: viewportPosition,
+                  inner: onSelectionFinished(
+                    scaledPosition,
+                    content,
+                    hideTipAndSelection,
+                    () =>
+                      setGhostHighlight((prev) => ({
+                        ...prev,
+                        position: scaledPosition,
+                      })),
 
-              const viewportPosition = {
-                boundingRect: pageBoundingRect,
-                rects: [],
-                pageNumber: page.number,
-              };
+                    categoryLabels
+                  ),
+                });
+              }}
+              onReset={() => setSelectionType("")}
+              onSelection={(
+                startTarget,
+                boundingRect,
+                resetSelection,
+                cLabels
+              ) => {
+                const page = getPageFromElement(startTarget);
+                if (!page || !viewer.current) {
+                  return;
+                }
 
-              const scaledPosition = viewportPositionToScaled(
-                viewportPosition,
-                viewer.current
-              );
+                const pageBoundingRect = {
+                  ...boundingRect,
+                  top: boundingRect.top - page.node.offsetTop,
+                  left: boundingRect.left - page.node.offsetLeft,
+                  pageNumber: page.number,
+                };
 
-              const image = screenshot(
-                pageBoundingRect,
-                pageBoundingRect.pageNumber,
-                viewer.current
-              );
+                const viewportPosition = {
+                  boundingRect: pageBoundingRect,
+                  rects: [],
+                  pageNumber: page.number,
+                };
 
-              setTip({
-                position: viewportPosition,
-                inner: onSelectionFinished(
-                  scaledPosition,
-                  { image },
-                  () => hideTipAndSelection(),
-                  () => {
-                    setGhostHighlight((prev) => ({
-                      ...prev,
-                      position: scaledPosition,
-                      content: { image },
-                    }));
-                    resetSelection();
-                  },
-                  cLabels
-                ),
-              });
-            }}
-          />
+                const scaledPosition = viewportPositionToScaled(
+                  viewportPosition,
+                  viewer.current
+                );
+
+                const image = screenshot(
+                  pageBoundingRect,
+                  pageBoundingRect.pageNumber,
+                  viewer.current
+                );
+
+                setTip({
+                  position: viewportPosition,
+                  inner: onSelectionFinished(
+                    scaledPosition,
+                    { image },
+                    () => hideTipAndSelection(),
+                    () => {
+                      setGhostHighlight((prev) => ({
+                        ...prev,
+                        position: scaledPosition,
+                        content: { image },
+                      }));
+                      resetSelection();
+                    },
+                    cLabels
+                  ),
+                });
+              }}
+            />
+          </>
         )}
       </div>
     </div>
