@@ -20,7 +20,7 @@ import "../style/pdf_viewer.css";
 
 import "../style/PdfHighlighter.css";
 
-import { asElement, getPageFromElement, isHTMLElement } from "../lib/pdfjs-dom";
+import { asElement, isHTMLElement } from "../lib/pdfjs-dom";
 
 import TipContainer from "./TipContainer";
 import Selection from "./Selection";
@@ -29,13 +29,11 @@ import { scaledToViewport } from "../lib/coordinates";
 
 import type {
   IHighlight,
+  NewHighlight,
   Position,
-  ScaledPosition,
   SelectionType,
 } from "../types";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { viewportPositionToScaled } from "../lib/position-conversion";
-import { screenshot } from "../lib/screenshot";
 import { Highlights } from "./Highlights";
 
 interface Props<T_HT> {
@@ -45,31 +43,25 @@ interface Props<T_HT> {
   scrollRef: (scrollTo: (highlight: IHighlight) => void) => void;
   pdfDocument: PDFDocumentProxy;
   pdfScaleValue: string;
-  onSelectionFinished: (
-    position: ScaledPosition,
-    content: { text?: string; image?: string },
-    hideTipAndSelection: () => void,
-    transformSelection: () => void,
-    categoryLabels: Array<{ label: string; background: string }>
-  ) => JSX.Element | null;
   setSelectionType: (value: SelectionType) => void;
   selectionType: SelectionType;
   getPageCount: (pageCount: number) => void;
   getCurrentPage: (currentPage: number) => void;
   destinationPage?: number;
   style?: CSSProperties;
+  addHighlight: (highlight: NewHighlight) => void;
 }
 
 const EMPTY_ID = "empty-id";
 
 export const PdfHighlighter = ({
+  addHighlight,
   categoryLabels,
   highlights,
   onScrollChange,
   scrollRef,
   pdfDocument,
   pdfScaleValue = "auto",
-  onSelectionFinished,
   setSelectionType,
   selectionType,
   getPageCount,
@@ -77,16 +69,8 @@ export const PdfHighlighter = ({
   destinationPage,
   style,
 }: Props<IHighlight>) => {
-  const [ghostHighlight, setGhostHighlight] = useState<{
-    position: ScaledPosition;
-    content?: { text?: string; image?: string };
-  } | null>(null);
-
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(true);
   const [scrolledToHighlightId, setScrolledToHighlightId] =
     useState<string>(EMPTY_ID);
-  const [isAreaSelectionInProgress, setIsAreaSelectionInProgress] =
-    useState<boolean>(false);
   const [tip, setTip] = useState<{
     position: Position | null;
     inner: JSX.Element | null;
@@ -242,11 +226,6 @@ export const PdfHighlighter = ({
     if (!pages.length) return;
     if (!viewerElem) return;
 
-    // TODO: consider observing only pages that are near the current viewport
-    //const currentPageNumber = viewer.current.currentPageNumber;
-
-    //const currentPage = viewer.current.getPageView(currentPageNumber - 1);
-
     const intersectionObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -293,10 +272,6 @@ export const PdfHighlighter = ({
     hideTipAndSelection();
   };
 
-  const selectionInProgress = Boolean(
-    !isCollapsed || ghostHighlight || isAreaSelectionInProgress
-  );
-
   return (
     <div onPointerDown={onMouseDown}>
       <div
@@ -311,103 +286,26 @@ export const PdfHighlighter = ({
             <TipContainer tipPosition={tip.position} viewer={viewer.current}>
               {tip.inner}
             </TipContainer>
-
             <Highlights
               viewer={viewer.current}
               highlights={highlights}
-              ghostHighlight={ghostHighlight}
               visiblePages={visiblePages}
               scrolledToHighlightId={scrolledToHighlightId}
               categoryLabels={categoryLabels}
               setTip={setTip}
               hideTip={hideTipAndSelection}
               updateHighlight={(highlightId, position, content) => {}}
-              selectionInProgress={selectionInProgress}
-              popupContent={(highlight) => <HighlightPopup {...highlight} />}
             />
-
             <Selection
               viewer={viewer.current}
               selectionType={selectionType}
               onTextSelectionFailure={() => setSelectionType("area")}
               container={containerNode.current}
+              addHighlight={addHighlight}
               categoryLabels={categoryLabels}
-              onChange={(isVisible) => setIsAreaSelectionInProgress(isVisible)}
-              onTextSelectionChange={(
-                viewportPosition: Position,
-                scaledPosition: ScaledPosition,
-                content: { text: string }
-              ) => {
-                setTip({
-                  position: viewportPosition,
-                  inner: onSelectionFinished(
-                    scaledPosition,
-                    content,
-                    hideTipAndSelection,
-                    () =>
-                      setGhostHighlight((prev) => ({
-                        ...prev,
-                        position: scaledPosition,
-                      })),
-
-                    categoryLabels
-                  ),
-                });
-              }}
+              hideTip={hideTipAndSelection}
+              setTip={setTip}
               onReset={() => setSelectionType("")}
-              onSelection={(
-                startTarget,
-                boundingRect,
-                resetSelection,
-                cLabels
-              ) => {
-                const page = getPageFromElement(startTarget);
-                if (!page || !viewer.current) {
-                  return;
-                }
-
-                const pageBoundingRect = {
-                  ...boundingRect,
-                  top: boundingRect.top - page.node.offsetTop,
-                  left: boundingRect.left - page.node.offsetLeft,
-                  pageNumber: page.number,
-                };
-
-                const viewportPosition = {
-                  boundingRect: pageBoundingRect,
-                  rects: [],
-                  pageNumber: page.number,
-                };
-
-                const scaledPosition = viewportPositionToScaled(
-                  viewportPosition,
-                  viewer.current
-                );
-
-                const image = screenshot(
-                  pageBoundingRect,
-                  pageBoundingRect.pageNumber,
-                  viewer.current
-                );
-
-                setTip({
-                  position: viewportPosition,
-                  inner: onSelectionFinished(
-                    scaledPosition,
-                    { image },
-                    () => hideTipAndSelection(),
-                    () => {
-                      setGhostHighlight((prev) => ({
-                        ...prev,
-                        position: scaledPosition,
-                        content: { image },
-                      }));
-                      resetSelection();
-                    },
-                    cLabels
-                  ),
-                });
-              }}
             />
           </>
         )}
@@ -415,14 +313,3 @@ export const PdfHighlighter = ({
     </div>
   );
 };
-
-const HighlightPopup = ({
-  comment,
-}: {
-  comment: { text: string; category: string };
-}) =>
-  comment.text ? (
-    <div className="Highlight__popup">
-      {comment.category} {comment.text}
-    </div>
-  ) : null;

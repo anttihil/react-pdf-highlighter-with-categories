@@ -5,13 +5,13 @@ import { getPageFromElement } from "../lib/pdfjs-dom";
 
 import "../style/AreaHighlight.css";
 
-import type { LTWHP, ViewportHighlight } from "../types.js";
+import type { LTWHP, RenderedAreaHighlight } from "../types.js";
 
 interface Props {
   categoryLabels: Array<{ label: string; background: string }>;
-  highlight: ViewportHighlight;
+  highlight: RenderedAreaHighlight;
   onChange: (rect: LTWHP) => void;
-  comment: {
+  comment?: {
     category: string;
     text: string;
   };

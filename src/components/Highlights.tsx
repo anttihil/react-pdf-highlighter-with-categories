@@ -19,10 +19,6 @@ import { screenshot } from "../lib/screenshot";
 
 interface Props {
   highlights: IHighlight[];
-  ghostHighlight?: {
-    position: ScaledPosition;
-    content?: { text?: string; image?: string };
-  } | null;
   visiblePages: number[];
   viewer: PDFViewer;
   scrolledToHighlightId: string;
@@ -37,12 +33,9 @@ interface Props {
     position: Object,
     content: Object
   ) => void;
-  popupContent: (highlight: ViewportHighlight) => JSX.Element;
-  selectionInProgress: boolean;
 }
 export const Highlights = ({
   highlights,
-  ghostHighlight,
   visiblePages,
   viewer,
   scrolledToHighlightId,
@@ -50,22 +43,15 @@ export const Highlights = ({
   setTip,
   hideTip,
   updateHighlight,
-  popupContent,
 }: Props) => {
   const highlightsByPage = useMemo(() => {
     const groupHighlightsByPage = (
-      highlights: Array<IHighlight>,
-      ghostHighlight?: {
-        position: ScaledPosition;
-        content?: { text?: string; image?: string };
-      } | null
+      highlights: Array<IHighlight>
     ): {
       [pageNumber: string]: Array<IHighlight>;
     } => {
-      const allHighlights = [...highlights, ghostHighlight].filter(Boolean);
-
       const pageNumbers = new Set<number>();
-      for (const highlight of allHighlights) {
+      for (const highlight of highlights) {
         pageNumbers.add(highlight!.position.pageNumber);
         for (const rect of highlight!.position.rects) {
           if (rect.pageNumber) {
@@ -78,7 +64,7 @@ export const Highlights = ({
 
       for (const pageNumber of pageNumbers) {
         groupedHighlights[pageNumber] = groupedHighlights[pageNumber] || [];
-        for (const highlight of allHighlights) {
+        for (const highlight of highlights) {
           const pageSpecificHighlight = {
             ...highlight,
             position: {
@@ -105,8 +91,8 @@ export const Highlights = ({
 
       return groupedHighlights;
     };
-    return groupHighlightsByPage(highlights, ghostHighlight);
-  }, [highlights, ghostHighlight]);
+    return groupHighlightsByPage(highlights);
+  }, [highlights]);
 
   const highlightLayers = useMemo(
     () =>
@@ -134,7 +120,7 @@ export const Highlights = ({
 
         return (
           <Popup
-            popupContent={popupContent(viewportHighlight)}
+            popupContent={<HighlightPopup {...viewportHighlight} />}
             onMouseOver={(popupContent) => {
               setTip({
                 position: viewportHighlight.position,
@@ -189,3 +175,14 @@ export const Highlights = ({
     </div>
   );
 };
+
+const HighlightPopup = ({
+  comment,
+}: {
+  comment: { text: string; category: string };
+}) =>
+  comment.text ? (
+    <div className="Highlight__popup">
+      {comment.category} {comment.text}
+    </div>
+  ) : null;

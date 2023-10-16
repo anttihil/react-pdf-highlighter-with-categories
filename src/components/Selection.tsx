@@ -1,11 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { asElement, getPagesFromRange, isHTMLElement } from "../lib/pdfjs-dom";
+import {
+  asElement,
+  getPageFromElement,
+  getPagesFromRange,
+  isHTMLElement,
+} from "../lib/pdfjs-dom";
 import "../style/Selection.css";
 
-import type {
+import {
+  GhostHighlight,
+  NewHighlight,
   LTWH,
-  LTWHP,
   Position,
   ScaledPosition,
   SelectionType,
@@ -22,6 +28,9 @@ import { viewportToScaled } from "../lib/coordinates";
 import Highlight from "./Highlight";
 import { createPortal } from "react-dom";
 import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-layer";
+import { screenshot } from "../lib/screenshot";
+import { Tip } from "./Tip";
+import AreaHighlight from "./AreaHighlight";
 
 interface Coords {
   x: number;
@@ -37,22 +46,16 @@ interface State {
 interface Props {
   container: HTMLDivElement | null;
   onTextSelectionFailure: () => void;
-  onSelection: (
-    startTarget: HTMLElement,
-    boundingRect: LTWH,
-    resetSelection: () => void,
-    categoryLabels: Array<{ label: string; background: string }>
-  ) => void;
-  onChange: (isVisible: boolean) => void;
   categoryLabels: Array<{ label: string; background: string }>;
   onReset: () => void;
   viewer: PDFViewer;
   selectionType: SelectionType;
-  onTextSelectionChange: (
-    viewportPosition: Position,
-    scaledPosition: ScaledPosition,
-    content: { text: string }
-  ) => void;
+  hideTip: () => void;
+  setTip: (tip: {
+    position: Position | null;
+    inner: JSX.Element | null;
+  }) => void;
+  addHighlight: (highlight: NewHighlight) => void;
 }
 
 const getSelectionBoxBoundingRect = (start: Coords, end: Coords): LTWH => {
@@ -64,7 +67,7 @@ const getSelectionBoxBoundingRect = (start: Coords, end: Coords): LTWH => {
   };
 };
 
-const getContainerCoords = (args: {
+const getCoordsInContainer = (args: {
   pageX: number;
   pageY: number;
   container: HTMLDivElement | null;
@@ -103,14 +106,14 @@ const viewportPositionToScaled = (
 
 const Selection = ({
   container,
-  onChange,
   categoryLabels,
   onReset,
-  onSelection,
   onTextSelectionFailure,
-  onTextSelectionChange,
   selectionType,
   viewer,
+  setTip,
+  addHighlight,
+  hideTip,
 }: Props) => {
   const [state, setState] = useState<State>({
     locked: false,
@@ -120,6 +123,10 @@ const Selection = ({
 
   const [isSelectionCollapsed, setSelectionCollapsed] = useState(true);
 
+  const [ghostHighlight, setGhostHighlight] = useState<GhostHighlight | null>(
+    null
+  );
+
   const startTarget = useRef<HTMLElement | null>(null);
   const range = useRef<Range>(document.createRange());
   const startTime = useRef(Infinity);
@@ -128,17 +135,10 @@ const Selection = ({
     offset: number;
   } | null>(null);
 
-  const [selectionPosition, setSelectionPosition] = useState<{
-    rects: LTWHP[];
-    boundingRect: LTWHP;
-  } | null>(null);
-
   const containerBoundingRect = useMemo(
     () => container?.getBoundingClientRect(),
     [container]
   );
-
-  const selectionLayer = useRef<Element | null>(null);
 
   const reset = () => {
     const selection = window.getSelection();
@@ -158,8 +158,6 @@ const Selection = ({
       const updatedRange =
         selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
 
-      console.log("updatedRange", updatedRange, selection.isCollapsed);
-
       if (selection.isCollapsed) {
         setSelectionCollapsed(true);
         return;
@@ -176,7 +174,6 @@ const Selection = ({
       setSelectionCollapsed(false);
       range.current = updatedRange;
 
-      console.log("continue");
       debounce(() => {
         if (!range.current || isSelectionCollapsed) {
           return;
@@ -208,12 +205,27 @@ const Selection = ({
           viewportPosition,
           viewer
         );
-        selectionLayer.current = findOrCreateHighlightLayer(
-          pages[0].number,
-          viewer
-        ); // TODO: remove this
-        setSelectionPosition({ boundingRect, rects });
-        onTextSelectionChange(viewportPosition, scaledPosition, content);
+
+        setTip({
+          position: viewportPosition,
+          inner: (
+            <Tip
+              onOpen={() => {
+                setGhostHighlight((prev) => ({
+                  ...prev,
+                  position: viewportPosition,
+                  content,
+                }));
+                reset();
+              }}
+              onConfirm={(comment) => {
+                addHighlight({ content, position: scaledPosition, comment });
+                hideTip();
+              }}
+              categoryLabels={categoryLabels}
+            />
+          ),
+        });
       }, 100)();
     };
 
@@ -223,13 +235,6 @@ const Selection = ({
       document.removeEventListener("selectionchange", onSelectionChange);
     };
   }, [container, viewer, isSelectionCollapsed]);
-
-  useEffect(() => {
-    const { start, end } = state;
-
-    // start && end means that the selection is visible
-    onChange(Boolean(start && end));
-  }, [state.start, state.end, onChange]);
 
   useEffect(() => {
     if (!container) return;
@@ -265,7 +270,7 @@ const Selection = ({
       // init selection box
       const { pageX, pageY } = event;
       setState({
-        start: getContainerCoords({
+        start: getCoordsInContainer({
           pageX,
           pageY,
           container,
@@ -309,7 +314,7 @@ const Selection = ({
 
       setState((prev) => ({
         ...prev,
-        end: getContainerCoords({
+        end: getCoordsInContainer({
           pageX,
           pageY,
           container,
@@ -333,19 +338,20 @@ const Selection = ({
   ]);
 
   useEffect(() => {
-    const handlePointerUp = (event: PointerEvent): void => {
+    if (!container) return;
+    const handlePointerUp = (event: PointerEvent) => {
       if (
         !selectionType ||
-        !container ||
         !state.start ||
         shouldRejectShortSelect(event, startTime.current) ||
-        !startNode
+        !container ||
+        !container.contains(asElement(event.target))
       ) {
-        reset();
         return;
       }
+
       const { pageX, pageY } = event;
-      const end = getContainerCoords({
+      const end = getCoordsInContainer({
         pageX,
         pageY,
         container,
@@ -354,44 +360,93 @@ const Selection = ({
 
       const boundingRect = getSelectionBoxBoundingRect(state.start, end);
 
-      if (
-        !isHTMLElement(event.target) ||
-        !container.contains(asElement(event.target)) ||
-        !shouldRender(boundingRect)
-      ) {
+      if (!shouldRender(boundingRect)) {
         reset();
         return;
       }
 
-      if (selectionType === "text") {
-        const { textNode, offset } = getTextNodeAndOffset(event, viewer);
-        if (textNode) {
-          const selection = window.getSelection();
-          selection?.setBaseAndExtent(
-            startNode.textNode,
-            startNode.offset,
-            textNode,
-            offset
-          ); // set the selection to the new range
-        }
-      }
-
       setState((prev) => ({ ...prev, end, locked: true }));
 
-      if (!state.start || !end || !startTarget.current) return;
+      if (selectionType === "text") {
+        if (!startNode) {
+          reset();
+          return;
+        }
+        window
+          .getSelection()
+          ?.setBaseAndExtent(
+            startNode.textNode,
+            startNode.offset,
+            startNode.textNode,
+            startNode.offset
+          );
+      } else {
+        if (!startTarget.current) {
+          reset();
+          return;
+        }
+        const page = getPageFromElement(startTarget.current);
+        if (!page || !viewer) {
+          return;
+        }
 
-      if (isHTMLElement(event.target)) {
-        onSelection(startTarget.current, boundingRect, reset, categoryLabels);
+        const pageBoundingRect = {
+          ...boundingRect,
+          top: boundingRect.top - page.node.offsetTop,
+          left: boundingRect.left - page.node.offsetLeft,
+          pageNumber: page.number,
+        };
+
+        const viewportPosition = {
+          boundingRect: pageBoundingRect,
+          rects: [],
+          pageNumber: page.number,
+        };
+
+        const scaledPosition = viewportPositionToScaled(
+          viewportPosition,
+          viewer
+        );
+
+        const image = screenshot(
+          pageBoundingRect,
+          pageBoundingRect.pageNumber,
+          viewer
+        );
+
+        setTip({
+          position: viewportPosition,
+          inner: (
+            <Tip
+              onOpen={() => {
+                setGhostHighlight((prev) => ({
+                  ...prev,
+                  position: viewportPosition,
+                  content: { image },
+                }));
+                reset();
+              }}
+              onConfirm={(comment) => {
+                addHighlight({
+                  content: { image },
+                  position: scaledPosition,
+                  comment,
+                });
+                hideTip();
+              }}
+              categoryLabels={categoryLabels}
+            />
+          ),
+        });
       }
     };
 
-    document.addEventListener("pointerup", handlePointerUp);
+    container.addEventListener("pointerup", handlePointerUp);
 
     return () => {
-      document.removeEventListener("pointerup", handlePointerUp);
+      container.removeEventListener("pointerup", handlePointerUp);
     };
   }, [
-    onSelection,
     container,
     state.start,
     containerBoundingRect,
@@ -400,6 +455,42 @@ const Selection = ({
     startNode,
     viewer,
   ]);
+
+  const renderGhostHighlight = () => {
+    if (!ghostHighlight) {
+      return null;
+    }
+
+    const {
+      position,
+      content: { image, text },
+    } = ghostHighlight;
+
+    const selectionLayer = findOrCreateHighlightLayer(
+      position.pageNumber,
+      viewer
+    );
+
+    if (!selectionLayer || !(image || text)) return null;
+
+    return createPortal(
+      text ? (
+        <Highlight
+          isScrolledTo={false}
+          position={ghostHighlight.position}
+          categoryLabels={categoryLabels}
+        />
+      ) : (
+        <AreaHighlight
+          isScrolledTo={false}
+          highlight={ghostHighlight}
+          categoryLabels={categoryLabels}
+          onChange={() => {}}
+        />
+      ),
+      selectionLayer
+    );
+  };
 
   return (
     <>
@@ -411,16 +502,7 @@ const Selection = ({
           style={getSelectionBoxBoundingRect(state.start, state.end)}
         />
       ) : null}
-      {selectionPosition &&
-        selectionLayer.current &&
-        createPortal(
-          <Highlight
-            position={selectionPosition}
-            categoryLabels={categoryLabels}
-            isScrolledTo={false}
-          />,
-          selectionLayer.current
-        )}
+      {renderGhostHighlight()}
     </>
   );
 };

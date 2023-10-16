@@ -65,6 +65,13 @@ export interface ViewportHighlight extends Omit<IHighlight, "position"> {
   position: Position;
 }
 
+export interface GhostHighlight extends HighlightContent {
+  position: Position;
+}
+
+export interface RenderedAreaHighlight
+  extends Omit<ViewportHighlight, "id" | "comment"> {}
+
 export interface Viewport {
   convertToPdfPoint: (x: number, y: number) => Array<number>;
   convertToViewportRectangle: (pdfRectangle: Array<number>) => Array<number>;

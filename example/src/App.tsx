@@ -3,10 +3,6 @@ import React, { Component } from "react";
 import {
   PdfLoader,
   PdfHighlighter,
-  Tip,
-  Highlight,
-  Popup,
-  AreaHighlight,
   SelectionType,
 } from "./react-pdf-highlighter";
 
@@ -305,23 +301,7 @@ class App extends Component<{}, State> {
                 getCurrentPage={(currentPage) => {
                   this.setState({ currentPage });
                 }}
-                onSelectionFinished={(
-                  position,
-                  content,
-                  hideTipAndSelection,
-                  transformSelection,
-                  categoryLabels
-                ) => (
-                  <Tip
-                    onOpen={transformSelection}
-                    onConfirm={(comment) => {
-                      this.addHighlight({ content, position, comment });
-                      console.log("comment", comment);
-                      hideTipAndSelection();
-                    }}
-                    categoryLabels={categoryLabels}
-                  />
-                )}
+                addHighlight={(newHighlight) => this.addHighlight(newHighlight)}
                 highlights={highlights}
               />
             )}
