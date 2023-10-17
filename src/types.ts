@@ -85,3 +85,8 @@ export interface Page {
 }
 
 export type SelectionType = "area" | "text" | "";
+
+export interface Coords {
+  x: number;
+  y: number;
+}

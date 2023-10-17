@@ -15,6 +15,7 @@ import {
   Position,
   ScaledPosition,
   SelectionType,
+  Coords,
 } from "../types.js";
 import {
   addMissingSpacesToSelection,
@@ -25,17 +26,14 @@ import debounce from "lodash.debounce";
 import getClientRects from "../lib/get-client-rects";
 import getBoundingRect from "../lib/get-bounding-rect";
 import { viewportToScaled } from "../lib/coordinates";
-import Highlight from "./Highlight";
-import { createPortal } from "react-dom";
-import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-layer";
 import { screenshot } from "../lib/screenshot";
 import { Tip } from "./Tip";
-import AreaHighlight from "./AreaHighlight";
-
-interface Coords {
-  x: number;
-  y: number;
-}
+import {
+  getCoordsInContainer,
+  getSelectionBoxBoundingRect,
+} from "../lib/selection-utils";
+import SelectionBox from "./SelectionBox";
+import HighlightInProgress from "./HighlightInProgress";
 
 interface State {
   locked: boolean;
@@ -57,31 +55,6 @@ interface Props {
   }) => void;
   addHighlight: (highlight: NewHighlight) => void;
 }
-
-const getSelectionBoxBoundingRect = (start: Coords, end: Coords): LTWH => {
-  return {
-    left: Math.min(end.x, start.x),
-    top: Math.min(end.y, start.y),
-    width: Math.abs(end.x - start.x),
-    height: Math.abs(end.y - start.y),
-  };
-};
-
-const getCoordsInContainer = (args: {
-  pageX: number;
-  pageY: number;
-  container: HTMLDivElement | null;
-  containerBoundingRect: DOMRect | undefined;
-}) => {
-  const { pageX, pageY, container, containerBoundingRect } = args;
-  if (!container || !containerBoundingRect) {
-    return { x: 0, y: 0 };
-  }
-  return {
-    x: pageX - containerBoundingRect.left + container.scrollLeft,
-    y: pageY - containerBoundingRect.top + container.scrollTop - window.scrollY,
-  };
-};
 
 const shouldRejectShortSelect = (event: PointerEvent, timestamp: number) => {
   return event.timeStamp - timestamp < 100;
@@ -127,9 +100,12 @@ const Selection = ({
     null
   );
 
-  const startTarget = useRef<HTMLElement | null>(null);
   const range = useRef<Range>(document.createRange());
-  const startTime = useRef(Infinity);
+
+  const [startTime, setStartTime] = useState(Infinity);
+
+  const [areaStartElem, setAreaStartElem] = useState<HTMLElement | null>(null);
+
   const [startNode, setStartNode] = useState<{
     textNode: Text;
     offset: number;
@@ -141,15 +117,14 @@ const Selection = ({
   );
 
   const reset = () => {
-    const selection = window.getSelection();
-    selection?.empty();
+    window.getSelection()?.empty();
     onReset();
-    startTime.current = Infinity;
+    setStartTime(Infinity);
     setState({ start: null, end: null, locked: false });
   };
 
   useEffect(() => {
-    const onSelectionChange = (e: Event) => {
+    const onSelectionChange = () => {
       const selection = window.getSelection();
       if (!selection) {
         return;
@@ -240,32 +215,33 @@ const Selection = ({
     if (!container) return;
 
     const handlePointerDown = (event: PointerEvent) => {
+      if (!selectionType) return;
+
+      const startElem = asElement(event.target);
       if (
-        !selectionType ||
-        !isHTMLElement(event.target) ||
-        !Boolean(asElement(event.target).closest(".page")) ||
+        !isHTMLElement(startElem) ||
+        !Boolean(startElem.closest(".page")) ||
         state.locked
       ) {
         reset();
         return;
       }
-      startTarget.current = asElement(event.target);
-      if (!isHTMLElement(startTarget.current)) {
-        return;
-      }
+
       if (selectionType === "text") {
         const { textNode, offset } = getTextNodeAndOffset(event, viewer);
-        if (textNode) {
-          // go into text selection mode
-          const selection = window.getSelection();
-          selection?.empty();
-          setStartNode({ textNode, offset });
-        } else {
+        if (!textNode) {
           onTextSelectionFailure();
+          return;
         }
+        // set text selection start node
+        window.getSelection()?.empty();
+        setStartNode({ textNode, offset });
+      } else {
+        // set area selection start element
+        setAreaStartElem(startElem);
       }
 
-      startTime.current = event.timeStamp;
+      setStartTime(event.timeStamp);
 
       // init selection box
       const { pageX, pageY } = event;
@@ -292,22 +268,26 @@ const Selection = ({
     if (!container) return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!selectionType || !state.start || state.locked || !startNode) return;
-
-      if (shouldRejectShortSelect(event, startTime.current)) return;
+      if (
+        !selectionType ||
+        !state.start ||
+        state.locked ||
+        shouldRejectShortSelect(event, startTime)
+      )
+        return;
 
       if (selectionType === "text") {
         const { textNode, offset } = getTextNodeAndOffset(event, viewer);
-        if (textNode) {
-          const selection = window.getSelection();
-
-          selection?.setBaseAndExtent(
+        if (!textNode || !startNode) return;
+        // update text selection end node
+        window
+          .getSelection()
+          ?.setBaseAndExtent(
             startNode.textNode,
             startNode.offset,
             textNode,
             offset
           );
-        }
       }
 
       const { pageX, pageY } = event;
@@ -329,12 +309,13 @@ const Selection = ({
       container.removeEventListener("pointermove", handlePointerMove);
     };
   }, [
-    selectionType,
-    state,
     container,
     containerBoundingRect,
-    viewer,
+    selectionType,
     startNode,
+    startTime,
+    state,
+    viewer,
   ]);
 
   useEffect(() => {
@@ -343,10 +324,11 @@ const Selection = ({
       if (
         !selectionType ||
         !state.start ||
-        shouldRejectShortSelect(event, startTime.current) ||
+        shouldRejectShortSelect(event, startTime) ||
         !container ||
         !container.contains(asElement(event.target))
       ) {
+        reset();
         return;
       }
 
@@ -381,11 +363,11 @@ const Selection = ({
             startNode.offset
           );
       } else {
-        if (!startTarget.current) {
+        if (!areaStartElem) {
           reset();
           return;
         }
-        const page = getPageFromElement(startTarget.current);
+        const page = getPageFromElement(areaStartElem);
         if (!page || !viewer) {
           return;
         }
@@ -414,6 +396,7 @@ const Selection = ({
           viewer
         );
 
+        // TODO: have a separate tip for selection and highlight hover, use data instead of setting component
         setTip({
           position: viewportPosition,
           inner: (
@@ -454,55 +437,24 @@ const Selection = ({
     categoryLabels,
     startNode,
     viewer,
+    areaStartElem,
+    addHighlight,
+    hideTip,
+    setTip,
   ]);
-
-  const renderGhostHighlight = () => {
-    if (!ghostHighlight) {
-      return null;
-    }
-
-    const {
-      position,
-      content: { image, text },
-    } = ghostHighlight;
-
-    const selectionLayer = findOrCreateHighlightLayer(
-      position.pageNumber,
-      viewer
-    );
-
-    if (!selectionLayer || !(image || text)) return null;
-
-    return createPortal(
-      text ? (
-        <Highlight
-          isScrolledTo={false}
-          position={ghostHighlight.position}
-          categoryLabels={categoryLabels}
-        />
-      ) : (
-        <AreaHighlight
-          isScrolledTo={false}
-          highlight={ghostHighlight}
-          categoryLabels={categoryLabels}
-          onChange={() => {}}
-        />
-      ),
-      selectionLayer
-    );
-  };
 
   return (
     <>
-      {state.start && state.end ? (
-        <div
-          className={
-            "Selection" + (selectionType === "area" ? " Selection--area" : "")
-          }
-          style={getSelectionBoxBoundingRect(state.start, state.end)}
-        />
-      ) : null}
-      {renderGhostHighlight()}
+      <SelectionBox
+        start={state.start}
+        end={state.end}
+        selectionType={selectionType}
+      />
+      <HighlightInProgress
+        ghostHighlight={ghostHighlight}
+        viewer={viewer}
+        categoryLabels={categoryLabels}
+      />
     </>
   );
 };
