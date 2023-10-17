@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import {
+  Content,
   IHighlight,
   LTWHP,
   Position,
+  Scaled,
   ScaledPosition,
   ViewportHighlight,
 } from "../types";
@@ -16,6 +18,7 @@ import AreaHighlight from "./AreaHighlight";
 import { viewportToScaled } from "../lib/coordinates";
 import { createPortal } from "react-dom";
 import { screenshot } from "../lib/screenshot";
+import HighlightPopup from "./HighlightPopup";
 
 interface Props {
   highlights: IHighlight[];
@@ -28,10 +31,10 @@ interface Props {
     inner: JSX.Element | null;
   }) => void;
   hideTip: () => void;
-  updateHighlight: (
-    highlightId: string,
-    position: Object,
-    content: Object
+  updateAreaHighlight: (
+    id: string,
+    boundingRect: Scaled,
+    content: Content
   ) => void;
 }
 export const Highlights = ({
@@ -42,7 +45,7 @@ export const Highlights = ({
   categoryLabels,
   setTip,
   hideTip,
-  updateHighlight,
+  updateAreaHighlight,
 }: Props) => {
   const highlightsByPage = useMemo(() => {
     const groupHighlightsByPage = (
@@ -120,7 +123,9 @@ export const Highlights = ({
 
         return (
           <Popup
-            popupContent={<HighlightPopup {...viewportHighlight} />}
+            popupContent={
+              <HighlightPopup comment={viewportHighlight.comment} />
+            }
             onMouseOver={(popupContent) => {
               setTip({
                 position: viewportHighlight.position,
@@ -151,9 +156,9 @@ export const Highlights = ({
                   };
                   const updateImage = (boundingRect: LTWHP) =>
                     screenshot(boundingRect, pageNumber, viewer);
-                  updateHighlight(
+                  updateAreaHighlight(
                     viewportHighlight.id,
-                    { boundingRect: rectToScaled(boundingRect) },
+                    rectToScaled(boundingRect),
                     { image: updateImage(boundingRect) }
                   );
                 }}
@@ -175,14 +180,3 @@ export const Highlights = ({
     </div>
   );
 };
-
-const HighlightPopup = ({
-  comment,
-}: {
-  comment: { text: string; category: string };
-}) =>
-  comment.text ? (
-    <div className="Highlight__popup">
-      {comment.category} {comment.text}
-    </div>
-  ) : null;

@@ -16,6 +16,7 @@ import {
   ScaledPosition,
   SelectionType,
   Coords,
+  LTWHP,
 } from "../types.js";
 import {
   addMissingSpacesToSelection,
@@ -454,6 +455,12 @@ const Selection = ({
         ghostHighlight={ghostHighlight}
         viewer={viewer}
         categoryLabels={categoryLabels}
+        resizeAreaHighlight={(boundingRect: LTWHP) => {
+          setGhostHighlight((prev) => {
+            if (!prev) return null;
+            return { ...prev, position: { ...prev.position, boundingRect } };
+          });
+        }}
       />
     </>
   );

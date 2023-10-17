@@ -6,7 +6,12 @@ import {
   SelectionType,
 } from "./react-pdf-highlighter";
 
-import type { IHighlight, NewHighlight } from "./react-pdf-highlighter";
+import type {
+  Content,
+  IHighlight,
+  NewHighlight,
+  Scaled,
+} from "./react-pdf-highlighter";
 
 import { testHighlights as _testHighlights } from "./test-highlights";
 import { Spinner } from "./Spinner";
@@ -117,8 +122,12 @@ class App extends Component<{}, State> {
     });
   }
 
-  updateHighlight(highlightId: string, position: Object, content: Object) {
-    console.log("Updating highlight", highlightId, position, content);
+  updateAreaHighlight(
+    highlightId: string,
+    boundingRect: Scaled,
+    content: Content
+  ) {
+    console.log("Updating highlight", highlightId, boundingRect, content);
 
     this.setState({
       highlights: this.state.highlights.map((h) => {
@@ -131,7 +140,7 @@ class App extends Component<{}, State> {
         return id === highlightId
           ? {
               id,
-              position: { ...originalPosition, ...position },
+              position: { ...originalPosition, boundingRect },
               content: { ...originalContent, ...content },
               ...rest,
             }
@@ -303,6 +312,9 @@ class App extends Component<{}, State> {
                 }}
                 addHighlight={(newHighlight) => this.addHighlight(newHighlight)}
                 highlights={highlights}
+                updateAreaHighlight={(id, boundingRect, content) =>
+                  this.updateAreaHighlight(id, boundingRect, content)
+                }
               />
             )}
           </PdfLoader>

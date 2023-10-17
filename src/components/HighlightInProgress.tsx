@@ -4,17 +4,19 @@ import Highlight from "./Highlight";
 import AreaHighlight from "./AreaHighlight";
 import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-layer";
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
-import { GhostHighlight } from "../types";
+import { GhostHighlight, LTWHP } from "../types";
 
 interface HighlightInProgressProps {
   ghostHighlight: GhostHighlight | null;
   viewer: PDFViewer;
   categoryLabels: Array<{ label: string; background: string }>;
+  resizeAreaHighlight: (boundingRect: LTWHP) => void;
 }
 const HighlightInProgress = ({
   categoryLabels,
   ghostHighlight,
   viewer,
+  resizeAreaHighlight,
 }: HighlightInProgressProps) => {
   if (!ghostHighlight) {
     return null;
@@ -44,7 +46,7 @@ const HighlightInProgress = ({
         isScrolledTo={false}
         highlight={ghostHighlight}
         categoryLabels={categoryLabels}
-        onChange={() => {}}
+        onChange={resizeAreaHighlight}
       />
     ),
     selectionLayer

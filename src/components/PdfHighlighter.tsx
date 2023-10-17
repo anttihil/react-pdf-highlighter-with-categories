@@ -28,9 +28,11 @@ import Selection from "./Selection";
 import { scaledToViewport } from "../lib/coordinates";
 
 import type {
+  Content,
   IHighlight,
   NewHighlight,
   Position,
+  Scaled,
   SelectionType,
 } from "../types";
 import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -50,6 +52,11 @@ interface Props<T_HT> {
   destinationPage?: number;
   style?: CSSProperties;
   addHighlight: (highlight: NewHighlight) => void;
+  updateAreaHighlight: (
+    id: string,
+    boundingRect: Scaled,
+    content: Content
+  ) => void;
 }
 
 const EMPTY_ID = "empty-id";
@@ -68,6 +75,7 @@ export const PdfHighlighter = ({
   getCurrentPage,
   destinationPage,
   style,
+  updateAreaHighlight,
 }: Props<IHighlight>) => {
   const [scrolledToHighlightId, setScrolledToHighlightId] =
     useState<string>(EMPTY_ID);
@@ -294,7 +302,7 @@ export const PdfHighlighter = ({
               categoryLabels={categoryLabels}
               setTip={setTip}
               hideTip={hideTipAndSelection}
-              updateHighlight={(highlightId, position, content) => {}}
+              updateAreaHighlight={updateAreaHighlight}
             />
             <Selection
               viewer={viewer.current}
