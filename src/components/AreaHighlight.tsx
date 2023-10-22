@@ -41,8 +41,6 @@ export const AreaHighlight = ({
   position,
   ...otherProps
 }: Props) => {
-  console.log("position", position);
-
   return (
     <div
       className={`AreaHighlight ${

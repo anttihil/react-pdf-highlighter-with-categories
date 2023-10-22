@@ -167,8 +167,6 @@ const AreaSelection = ({
           containerBoundingRect,
         })
       );
-
-      console.log("area selection change");
     };
 
     container.addEventListener("pointermove", handleAreaSelectionChange);
@@ -187,7 +185,6 @@ const AreaSelection = ({
 
   useEffect(() => {
     const handleAreaSelectionFinished = (event: PointerEvent) => {
-      console.log("area selection finished, selectionType: " + selectionType);
       if (
         selectionType !== "area" ||
         !startCoords ||
@@ -198,7 +195,6 @@ const AreaSelection = ({
         return;
       }
 
-      console.log("before getPageFromElement");
       const page = getPageFromElement(areaStart);
       if (!page) {
         reset();
@@ -218,7 +214,6 @@ const AreaSelection = ({
         end
       );
 
-      console.log("before shouldRender");
       if (!shouldRender(selectionBoundingRect)) {
         reset();
         return;
@@ -246,10 +241,6 @@ const AreaSelection = ({
         viewer
       );
 
-      console.log(
-        "viewportPositionToScaled",
-        viewportPositionToScaled(viewportPosition, viewer)
-      );
       // TODO: have a separate tip for selection and highlight hover, use data instead of setting component
       setTip({
         position: viewportPosition,
@@ -276,7 +267,6 @@ const AreaSelection = ({
           />
         ),
       });
-      console.log("area selection finished");
     };
 
     container.addEventListener("pointerup", handleAreaSelectionFinished);
