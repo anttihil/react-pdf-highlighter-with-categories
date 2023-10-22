@@ -5,11 +5,11 @@ import { getPageFromElement } from "../lib/pdfjs-dom";
 
 import "../style/AreaHighlight.css";
 
-import type { LTWHP, RenderedAreaHighlight } from "../types.js";
+import type { LTWHP, Position } from "../types.js";
 
 interface Props {
   categoryLabels: Array<{ label: string; background: string }>;
-  highlight: RenderedAreaHighlight;
+  position: Position;
   onChange: (rect: LTWHP) => void;
   comment?: {
     category: string;
@@ -34,13 +34,15 @@ const getColor = (
 };
 
 export const AreaHighlight = ({
-  highlight,
   onChange,
   comment,
   isScrolledTo,
   categoryLabels,
+  position,
   ...otherProps
 }: Props) => {
+  console.log("position", position);
+
   return (
     <div
       className={`AreaHighlight ${
@@ -51,7 +53,7 @@ export const AreaHighlight = ({
         className="AreaHighlight__part"
         onDragStop={(_, data) => {
           const boundingRect: LTWHP = {
-            ...highlight.position.boundingRect,
+            ...position.boundingRect,
             top: data.y,
             left: data.x,
           };
@@ -70,12 +72,12 @@ export const AreaHighlight = ({
           onChange(boundingRect);
         }}
         position={{
-          x: highlight.position.boundingRect.left,
-          y: highlight.position.boundingRect.top,
+          x: position.boundingRect.left,
+          y: position.boundingRect.top,
         }}
         size={{
-          width: highlight.position.boundingRect.width,
-          height: highlight.position.boundingRect.height,
+          width: position.boundingRect.width,
+          height: position.boundingRect.height,
         }}
         onClick={(event: Event) => {
           event.stopPropagation();

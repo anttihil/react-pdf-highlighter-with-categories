@@ -6,25 +6,25 @@ import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-laye
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
 import { GhostHighlight, LTWHP } from "../types";
 
-interface HighlightInProgressProps {
-  ghostHighlight: GhostHighlight | null;
+interface PreviewHighlightProps {
+  previewHighlight: GhostHighlight | null;
   viewer: PDFViewer;
   categoryLabels: Array<{ label: string; background: string }>;
   resizeAreaHighlight: (boundingRect: LTWHP) => void;
 }
-const HighlightInProgress = ({
+const PreviewHighlight = ({
   categoryLabels,
-  ghostHighlight,
+  previewHighlight: ghostHighlight,
   viewer,
   resizeAreaHighlight,
-}: HighlightInProgressProps) => {
+}: PreviewHighlightProps) => {
   if (!ghostHighlight) {
     return null;
   }
 
   const {
     position,
-    content: { image, text },
+    content: { text },
   } = ghostHighlight;
 
   const selectionLayer = findOrCreateHighlightLayer(
@@ -32,19 +32,19 @@ const HighlightInProgress = ({
     viewer
   );
 
-  if (!selectionLayer || !(image || text)) return null;
+  if (!selectionLayer) return null;
 
   return createPortal(
     text ? (
       <Highlight
         isScrolledTo={false}
-        position={ghostHighlight.position}
+        position={position}
         categoryLabels={categoryLabels}
       />
     ) : (
       <AreaHighlight
         isScrolledTo={false}
-        highlight={ghostHighlight}
+        position={position}
         categoryLabels={categoryLabels}
         onChange={resizeAreaHighlight}
       />
@@ -53,4 +53,4 @@ const HighlightInProgress = ({
   );
 };
 
-export default HighlightInProgress;
+export default PreviewHighlight;

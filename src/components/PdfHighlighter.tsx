@@ -307,13 +307,12 @@ export const PdfHighlighter = ({
             <Selection
               viewer={viewer.current}
               selectionType={selectionType}
-              onTextSelectionFailure={() => setSelectionType("area")}
+              setSelectionType={setSelectionType}
               container={containerNode.current}
               addHighlight={addHighlight}
               categoryLabels={categoryLabels}
               hideTip={hideTipAndSelection}
               setTip={setTip}
-              onReset={() => setSelectionType("")}
             />
           </>
         )}

@@ -145,7 +145,7 @@ export const Highlights = ({
             ) : (
               <AreaHighlight
                 isScrolledTo={isScrolledTo}
-                highlight={viewportHighlight}
+                position={viewportHighlight.position}
                 onChange={(boundingRect) => {
                   const rectToScaled = (rect: LTWHP) => {
                     const viewport = viewer.getPageView(
@@ -162,7 +162,7 @@ export const Highlights = ({
                     { image: updateImage(boundingRect) }
                   );
                 }}
-                comment={highlight.comment}
+                comment={viewportHighlight.comment}
                 categoryLabels={categoryLabels}
               />
             )}

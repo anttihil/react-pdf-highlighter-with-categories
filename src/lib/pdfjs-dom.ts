@@ -21,7 +21,7 @@ export const getPageFromElement = (target: HTMLElement): Page | null => {
 
   const number = Number(asElement(node).dataset.pageNumber);
 
-  return { node, number } as Page;
+  return { node, number };
 };
 
 export const getPagesFromRange = (range: Range): Page[] => {
@@ -29,22 +29,22 @@ export const getPagesFromRange = (range: Range): Page[] => {
   const endParentElement = range.endContainer.parentElement;
 
   if (!isHTMLElement(startParentElement) || !isHTMLElement(endParentElement)) {
-    return [] as Page[];
+    return [];
   }
 
   const startPage = getPageFromElement(asElement(startParentElement));
   const endPage = getPageFromElement(asElement(endParentElement));
 
   if (!startPage?.number || !endPage?.number) {
-    return [] as Page[];
+    return [];
   }
 
   if (startPage.number === endPage.number) {
-    return [startPage] as Page[];
+    return [startPage];
   }
 
   if (startPage.number === endPage.number - 1) {
-    return [startPage, endPage] as Page[];
+    return [startPage, endPage];
   }
 
   const pages: Page[] = [];
@@ -64,7 +64,7 @@ export const getPagesFromRange = (range: Range): Page[] => {
     }
   }
 
-  return pages as Page[];
+  return pages;
 };
 
 export const findOrCreateContainerLayer = (

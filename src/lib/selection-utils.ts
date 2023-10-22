@@ -15,13 +15,10 @@ export const getSelectionBoxBoundingRect = (
 export const getCoordsInContainer = (args: {
   pageX: number;
   pageY: number;
-  container: HTMLDivElement | null;
-  containerBoundingRect: DOMRect | undefined;
+  container: HTMLDivElement;
+  containerBoundingRect: LTWH;
 }) => {
   const { pageX, pageY, container, containerBoundingRect } = args;
-  if (!container || !containerBoundingRect) {
-    return { x: 0, y: 0 };
-  }
   return {
     x: pageX - containerBoundingRect.left + container.scrollLeft,
     y: pageY - containerBoundingRect.top + container.scrollTop - window.scrollY,
