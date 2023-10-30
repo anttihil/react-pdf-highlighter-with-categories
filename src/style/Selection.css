@@ -1,8 +1,9 @@
 .Selection {
   position: absolute;
   border: 1px dashed #333;
-  background: rgba(190,190,190, 1);
+  background: rgba(190, 190, 190, 1);
   mix-blend-mode: multiply;
+  pointer-events: none;
 }
 
 .Selection--area {
@@ -11,10 +12,14 @@
 
 /* Internet Explorer support method */
 @media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
-  .Selection {opacity: 0.5 }
+  .Selection {
+    opacity: 0.5;
+  }
 }
 
 /* Microsoft Edge Browser 12+ (All) - @supports method */
-@supports (-ms-ime-align:auto) {
-  .Selection {opacity: 0.5 }
+@supports (-ms-ime-align: auto) {
+  .Selection {
+    opacity: 0.5;
+  }
 }

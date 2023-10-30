@@ -286,6 +286,7 @@ export const PdfHighlighter = ({
         ref={containerNode}
         className="PdfHighlighter"
         onContextMenu={(e) => e.preventDefault()}
+        onDrag={(e) => e.preventDefault()}
         style={style}
       >
         <div className="pdfViewer" />

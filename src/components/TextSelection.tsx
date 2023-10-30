@@ -71,6 +71,7 @@ const TextSelection = ({
   const [startCoords, setStartCoords] = useState<Coords | null>(null);
   const [endCoords, setEndCoords] = useState<Coords | null>(null);
   const [boxLocked, setBoxLocked] = useState<boolean>(false);
+  const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
   const [previewHighlight, setPreviewHighlight] =
     useState<GhostHighlight | null>(null);
@@ -88,6 +89,8 @@ const TextSelection = ({
     setEndCoords(null);
     setBoxLocked(false);
     setPreviewHighlight(null);
+    setIsSelecting(false);
+    window.getSelection()?.empty();
   }, []);
 
   useEffect(() => {
@@ -111,13 +114,28 @@ const TextSelection = ({
         !Boolean(startElem.closest(".page")) ||
         boxLocked
       ) {
+        console.log("failed at start");
         reset();
         return;
       }
 
+      const coords = getCoordsInContainer({
+        pageX: event.pageX,
+        pageY: event.pageY,
+        container,
+        containerBoundingRect,
+      });
+
       if (selectionType === "text") {
-        const { textNode, offset } = getTextNodeAndOffset(event, viewer);
+        const { textNode, offset } = getTextNodeAndOffset(
+          event,
+          "start",
+          "down",
+          coords.y
+        );
+        console.log("found textNode at start", textNode);
         const selection = window.getSelection();
+        selection?.empty();
         if (!textNode || !selection) {
           setSelectionType("area");
           return;
@@ -126,16 +144,10 @@ const TextSelection = ({
       }
 
       setStartTime(event.timeStamp);
-      setStartCoords(
-        getCoordsInContainer({
-          pageX: event.pageX,
-          pageY: event.pageY,
-          container,
-          containerBoundingRect,
-        })
-      );
+      setStartCoords(coords);
       setEndCoords(null);
       setBoxLocked(false);
+      setIsSelecting(true);
     };
 
     container.addEventListener("pointerdown", handlePointerDown);
@@ -156,7 +168,18 @@ const TextSelection = ({
         return;
       }
 
-      const { textNode, offset } = getTextNodeAndOffset(event, viewer);
+      const direction = !endCoords
+        ? "down"
+        : startCoords.y - endCoords.y > 0
+        ? "down"
+        : "up";
+
+      const { textNode, offset } = getTextNodeAndOffset(
+        event,
+        "end",
+        direction,
+        startCoords.y
+      );
       const selection = window.getSelection();
 
       if (!textNode || !selection) {
@@ -204,7 +227,15 @@ const TextSelection = ({
     return () => {
       container.removeEventListener("pointermove", handleTextSelectionChange);
     };
-  }, [boxLocked, container, selectionType, startCoords, startTime, viewer]);
+  }, [
+    boxLocked,
+    container,
+    selectionType,
+    startCoords,
+    startTime,
+    viewer,
+    endCoords,
+  ]);
 
   useEffect(() => {
     const handleTextSelectionFinished = (event: PointerEvent) => {
@@ -217,7 +248,18 @@ const TextSelection = ({
         return;
       }
 
-      const { textNode, offset } = getTextNodeAndOffset(event, viewer);
+      const direction = !endCoords
+        ? "down"
+        : startCoords.y - endCoords.y > 0
+        ? "down"
+        : "up";
+
+      const { textNode, offset } = getTextNodeAndOffset(
+        event,
+        "end",
+        direction,
+        startCoords.y
+      );
       const selection = window.getSelection();
 
       if (!textNode || !selection || selection.isCollapsed) {
@@ -252,6 +294,8 @@ const TextSelection = ({
       const content = {
         text: addMissingSpacesToSelection(range) || range.toString(),
       };
+
+      setIsSelecting(false);
 
       setTip({
         position: viewportPosition,
@@ -312,6 +356,7 @@ const TextSelection = ({
     selectionType,
     startCoords,
     startTime,
+    endCoords,
   ]);
 
   const selectionLayer = findOrCreateHighlightLayer(
@@ -332,6 +377,7 @@ const TextSelection = ({
               isScrolledTo={false}
               position={previewHighlight.position}
               categoryLabels={categoryLabels}
+              isSelecting={isSelecting}
             />,
             selectionLayer
           )

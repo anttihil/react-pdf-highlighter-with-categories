@@ -1,5 +1,3 @@
-import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
-
 export const getTextNodesInRange = (range: Range) => {
   const container = range.commonAncestorContainer;
 
@@ -104,16 +102,27 @@ export const getTextAtPoint = (e: PointerEvent) => {
       textNode = textNodeFromPoint;
     }
   }
-
   return { textNode, offset };
 };
 
 /**If no text node is found, find the first text node below the pointer */
-export const getNextTextNode = (e: PointerEvent, viewer: PDFViewer) => {
-  // TODO: use target to get text layer
-  const textLayer = viewer.getPageView(viewer.currentPageNumber - 1).textLayer
-    ?.div;
+export const getNextTextNode = (
+  e: PointerEvent,
+  selectionPhase: "start" | "end",
+  direction: "down" | "up",
+  startY: number
+) => {
+  let textLayer: HTMLElement | null = null;
+
+  const target = e.target as HTMLElement;
+  if (target.classList.contains("textLayer")) {
+    textLayer = target;
+  } else if (target.classList.contains("endOfContent")) {
+    textLayer = target.parentElement;
+  }
+
   if (!textLayer) {
+    console.info("no text layer found");
     return null;
   }
 
@@ -122,21 +131,71 @@ export const getNextTextNode = (e: PointerEvent, viewer: PDFViewer) => {
 
   const tempRange = document.createRange();
   const walk = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT);
-  // TODO: move backwards if direction is up
-  while (walk.nextNode()) {
-    // We need to create a range to get the bounding rect of the text node
+
+  if (selectionPhase === "start") {
+    console.log("start selection phase");
+    while (walk.nextNode()) {
+      tempRange.selectNode(walk.currentNode);
+      textRect = tempRange.getBoundingClientRect();
+      console.log("textRect", textRect.top, e.clientY);
+      if (textRect.top > e.clientY) {
+        console.log("found text node", walk.currentNode.textContent);
+        textNode = walk.currentNode as Text;
+        break;
+      }
+    }
+
+    return textNode;
+  }
+
+  if (direction === "up") {
+    while (walk.nextNode()) {
+      tempRange.selectNode(walk.currentNode);
+      textRect = tempRange.getBoundingClientRect();
+      if (textRect.top > e.clientY) {
+        textNode = walk.currentNode as Text;
+        break;
+      }
+    }
+
+    return textNode;
+  }
+
+  const lastTextNode = walk.lastChild();
+  if (!lastTextNode) {
+    console.info("no last text node found");
+    return null;
+  }
+  walk.currentNode = lastTextNode;
+  while (walk.currentNode) {
+    console.log("walk", walk.currentNode.textContent);
     tempRange.selectNode(walk.currentNode);
     textRect = tempRange.getBoundingClientRect();
-    if (textRect.top > e.clientY) {
+    if (textRect.bottom < e.clientY) {
       textNode = walk.currentNode as Text;
+      console.log("found text node at bottom", textNode.textContent);
+      break;
+    }
+
+    const previous = walk.previousNode();
+    if (!previous) {
       break;
     }
   }
+
   return textNode;
 };
 
 /** Get the text node and offset at the pointer position */
-export const getTextNodeAndOffset = (e: PointerEvent, viewer: PDFViewer) => {
+export const getTextNodeAndOffset = (
+  e: PointerEvent,
+  selectionPhase: "start" | "end" = "start",
+  direction: "down" | "up" = "down",
+  startY: number
+) => {
   const { textNode, offset } = getTextAtPoint(e);
-  return { textNode: textNode || getNextTextNode(e, viewer), offset };
+  return {
+    textNode: textNode || getNextTextNode(e, selectionPhase, direction, startY),
+    offset,
+  };
 };

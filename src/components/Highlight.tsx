@@ -6,18 +6,19 @@ import type { LTWHP } from "../types.js";
 
 interface Props {
   categoryLabels: Array<{ label: string; background: string }>;
-  position: {
-    boundingRect: LTWHP;
-    rects: Array<LTWHP>;
-  };
-  onClick?: () => void;
-  onMouseOver?: () => void;
-  onMouseOut?: () => void;
   comment?: {
     category: string;
     text: string;
   };
   isScrolledTo: boolean;
+  isSelecting?: boolean;
+  onClick?: () => void;
+  onMouseOut?: () => void;
+  onMouseOver?: () => void;
+  position: {
+    boundingRect: LTWHP;
+    rects: Array<LTWHP>;
+  };
 }
 
 const getColor = (
@@ -36,12 +37,13 @@ const getColor = (
 
 export const Highlight = ({
   categoryLabels,
-  position,
-  onClick,
-  onMouseOver,
-  onMouseOut,
   comment,
+  isSelecting,
   isScrolledTo,
+  onClick,
+  onMouseOut,
+  onMouseOver,
+  position,
 }: Props) => {
   const { rects } = position;
 
@@ -62,7 +64,10 @@ export const Highlight = ({
                 comment?.category
               ),
             }}
-            className={`Highlight__part`}
+            className={
+              "Highlight__part" +
+              (isSelecting ? " Highlight__part--preview" : "")
+            }
           />
         ))}
       </div>
