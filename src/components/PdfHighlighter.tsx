@@ -287,7 +287,7 @@ export const PdfHighlighter = ({
         className="PdfHighlighter"
         onContextMenu={(e) => e.preventDefault()}
         onDrag={(e) => e.preventDefault()}
-        style={style}
+        style={{ ...style, touchAction: selectionType ? "none" : "auto" }}
       >
         <div className="pdfViewer" />
         {viewer.current && containerNode.current && (

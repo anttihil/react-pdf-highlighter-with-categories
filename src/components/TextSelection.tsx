@@ -10,19 +10,16 @@ import {
   Position,
   ScaledPosition,
   SelectionType,
-  Coords,
 } from "../types.js";
 import {
   addMissingSpacesToSelection,
-  getTextNodeAndOffset,
+  getTextAtPoint,
 } from "../lib/selection-range-utils";
 import { PDFViewer } from "pdfjs-dist/web/pdf_viewer";
 import getClientRects from "../lib/get-client-rects";
 import getBoundingRect from "../lib/get-bounding-rect";
 import { viewportToScaled } from "../lib/coordinates";
 import { Tip } from "./Tip";
-import { getCoordsInContainer } from "../lib/selection-utils";
-import SelectionBox from "./SelectionBox";
 import { findOrCreateHighlightLayer } from "../lib/find-or-create-highlight-layer";
 import { createPortal } from "react-dom";
 import Highlight from "./Highlight";
@@ -68,9 +65,6 @@ const TextSelection = ({
   setSelectionType,
   hideTip,
 }: Props) => {
-  const [startCoords, setStartCoords] = useState<Coords | null>(null);
-  const [endCoords, setEndCoords] = useState<Coords | null>(null);
-  const [boxLocked, setBoxLocked] = useState<boolean>(false);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
   const [previewHighlight, setPreviewHighlight] =
@@ -85,9 +79,6 @@ const TextSelection = ({
   const reset = useCallback(() => {
     setSelectionType("");
     setStartTime(Infinity);
-    setStartCoords(null);
-    setEndCoords(null);
-    setBoxLocked(false);
     setPreviewHighlight(null);
     setIsSelecting(false);
     window.getSelection()?.empty();
@@ -109,44 +100,23 @@ const TextSelection = ({
     const handlePointerDown = (event: PointerEvent) => {
       if (!selectionType) return;
       const startElem = asElement(event.target);
-      if (
-        !isHTMLElement(startElem) ||
-        !Boolean(startElem.closest(".page")) ||
-        boxLocked
-      ) {
-        console.log("failed at start");
+      if (!isHTMLElement(startElem) || !Boolean(startElem.closest(".page"))) {
         reset();
         return;
       }
 
-      const coords = getCoordsInContainer({
-        pageX: event.pageX,
-        pageY: event.pageY,
-        container,
-        containerBoundingRect,
-      });
-
       if (selectionType === "text") {
-        const { textNode, offset } = getTextNodeAndOffset(
-          event,
-          "start",
-          "down",
-          coords.y
-        );
-        console.log("found textNode at start", textNode);
+        const { textNode, offset } = getTextAtPoint(event);
         const selection = window.getSelection();
-        selection?.empty();
-        if (!textNode || !selection) {
-          setSelectionType("area");
+        if (!selection) {
+          reset();
           return;
         }
+        selection.empty();
         selection.setPosition(textNode, offset);
       }
 
       setStartTime(event.timeStamp);
-      setStartCoords(coords);
-      setEndCoords(null);
-      setBoxLocked(false);
       setIsSelecting(true);
     };
 
@@ -155,38 +125,33 @@ const TextSelection = ({
     return () => {
       container.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [selectionType, container, containerBoundingRect, viewer]);
+  }, [selectionType, container, containerBoundingRect, viewer, isSelecting]);
 
   useEffect(() => {
     const handleTextSelectionChange = (event: PointerEvent) => {
       if (
         selectionType !== "text" ||
-        !startCoords ||
-        boxLocked ||
+        !isSelecting ||
         shouldRejectShortSelect(event, startTime)
       ) {
         return;
       }
 
-      const direction = !endCoords
-        ? "down"
-        : startCoords.y - endCoords.y > 0
-        ? "down"
-        : "up";
+      let { textNode, offset } = getTextAtPoint(event);
 
-      const { textNode, offset } = getTextNodeAndOffset(
-        event,
-        "end",
-        direction,
-        startCoords.y
-      );
+      if (!textNode) return;
+
       const selection = window.getSelection();
 
-      if (!textNode || !selection) {
+      if (!selection) {
         return;
       }
 
-      selection.extend(textNode, offset);
+      if (!selection.focusNode) {
+        selection.setPosition(textNode, offset);
+      } else {
+        selection.extend(textNode, offset);
+      }
 
       const range = selection.getRangeAt(0);
 
@@ -211,15 +176,6 @@ const TextSelection = ({
         },
         content: { text: "preview" },
       }));
-
-      setEndCoords(
-        getCoordsInContainer({
-          pageX: event.pageX,
-          pageY: event.pageY,
-          container,
-          containerBoundingRect,
-        })
-      );
     };
 
     container.addEventListener("pointermove", handleTextSelectionChange);
@@ -227,47 +183,25 @@ const TextSelection = ({
     return () => {
       container.removeEventListener("pointermove", handleTextSelectionChange);
     };
-  }, [
-    boxLocked,
-    container,
-    selectionType,
-    startCoords,
-    startTime,
-    viewer,
-    endCoords,
-  ]);
+  }, [container, selectionType, startTime, viewer]);
 
   useEffect(() => {
     const handleTextSelectionFinished = (event: PointerEvent) => {
       if (
         selectionType !== "text" ||
-        !startCoords ||
+        !isSelecting ||
         shouldRejectShortSelect(event, startTime)
       ) {
         reset();
         return;
       }
 
-      const direction = !endCoords
-        ? "down"
-        : startCoords.y - endCoords.y > 0
-        ? "down"
-        : "up";
-
-      const { textNode, offset } = getTextNodeAndOffset(
-        event,
-        "end",
-        direction,
-        startCoords.y
-      );
       const selection = window.getSelection();
 
-      if (!textNode || !selection || selection.isCollapsed) {
+      if (!selection || selection.isCollapsed) {
         reset();
         return;
       }
-
-      selection.extend(textNode, offset);
 
       const range = selection.getRangeAt(0);
 
@@ -323,16 +257,6 @@ const TextSelection = ({
         ),
       });
 
-      setEndCoords(
-        getCoordsInContainer({
-          pageX: event.pageX,
-          pageY: event.pageY,
-          container,
-          containerBoundingRect,
-        })
-      );
-      setBoxLocked(true);
-
       setPreviewHighlight((prev) => ({
         ...prev,
         position: {
@@ -354,9 +278,8 @@ const TextSelection = ({
     containerBoundingRect,
     reset,
     selectionType,
-    startCoords,
     startTime,
-    endCoords,
+    isSelecting,
   ]);
 
   const selectionLayer = findOrCreateHighlightLayer(
@@ -366,11 +289,6 @@ const TextSelection = ({
 
   return (
     <>
-      <SelectionBox
-        start={startCoords}
-        end={endCoords}
-        selectionType={selectionType}
-      />
       {selectionLayer && previewHighlight
         ? createPortal(
             <Highlight

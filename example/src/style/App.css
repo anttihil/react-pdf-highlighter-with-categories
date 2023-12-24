@@ -5,6 +5,7 @@ body {
     sans-serif;
   background-color: #ffffff;
   color: #fff;
+  overscroll-behavior: none;
 }
 
 .sidebar {

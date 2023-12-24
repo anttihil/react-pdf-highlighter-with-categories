@@ -152,7 +152,14 @@ class App extends Component<{}, State> {
   render() {
     const { url, highlights, data, selectionType } = this.state;
     return (
-      <div className="App" style={{ display: "flex", height: "100vh" }}>
+      <div
+        className="App"
+        style={{
+          display: "flex",
+          height: "100vh",
+          touchAction: "none",
+        }}
+      >
         <div
           style={{
             position: "absolute",
